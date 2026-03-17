@@ -26,36 +26,31 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
     setLoading(true)
-
-    setTimeout(() => {
-      const err = login(email, password)
-      if (err) {
-        setError(err)
-        setLoading(false)
-      } else {
-        router.push("/dashboard")
-      }
-    }, 600)
+    const err = await login(email, password)
+    if (err) {
+      setError(err)
+      setLoading(false)
+    } else {
+      router.push("/dashboard")
+    }
   }
 
-  function quickLogin(demoEmail: string, demoPassword: string) {
+  async function quickLogin(demoEmail: string, demoPassword: string) {
     setEmail(demoEmail)
     setPassword(demoPassword)
     setError("")
     setLoading(true)
-    setTimeout(() => {
-      const err = login(demoEmail, demoPassword)
-      if (err) {
-        setError(err)
-        setLoading(false)
-      } else {
-        router.push("/dashboard")
-      }
-    }, 600)
+    const err = await login(demoEmail, demoPassword)
+    if (err) {
+      setError(err)
+      setLoading(false)
+    } else {
+      router.push("/dashboard")
+    }
   }
 
   return (

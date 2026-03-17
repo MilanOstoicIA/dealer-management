@@ -3,13 +3,28 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import type { User, UserRole } from "@/types"
-import { users } from "@/lib/data"
+import { useStore } from "@/lib/store"
+import { dbVerifyPassword } from "@/lib/supabase-service"
+
+// Sections that can be edited
+export type EditableSection = "vehiculos" | "clientes" | "citas" | "ventas" | "equipo"
+
+// Which roles can create/edit/delete in each section
+const EDIT_PERMISSIONS: Record<EditableSection, UserRole[]> = {
+  vehiculos: ["admin", "vendedor", "mecanico"],
+  clientes: ["admin", "vendedor", "recepcionista", "mecanico"],
+  citas: ["admin", "mecanico", "recepcionista", "vendedor"],
+  ventas: ["admin", "vendedor"],
+  equipo: ["admin"],
+}
 
 interface AuthContextType {
   user: User | null
-  login: (email: string, password: string) => string | null
+  login: (email: string, password: string) => Promise<string | null>
   logout: () => void
   hasAccess: (roles: UserRole[]) => boolean
+  isViewer: boolean
+  canEdit: (section: EditableSection) => boolean
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -20,6 +35,7 @@ const MOCK_PASSWORDS: Record<string, string> = {
   "laura.sanchez@dealerhub.es": "1234",
   "alejandro.perez@dealerhub.es": "1234",
   "maria.gonzalez@dealerhub.es": "1234",
+  "viewer@dealerhub.es": "viewer",
 }
 
 // Routes accessible by each role
@@ -34,24 +50,38 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/facturacion",
     "/dashboard/equipo",
     "/dashboard/foro",
+    "/dashboard/configuracion",
   ],
   vendedor: [
     "/dashboard",
     "/dashboard/vehiculos",
     "/dashboard/clientes",
+    "/dashboard/citas",
     "/dashboard/ventas",
     "/dashboard/foro",
   ],
   mecanico: [
     "/dashboard",
-    "/dashboard/citas",
     "/dashboard/vehiculos",
+    "/dashboard/clientes",
+    "/dashboard/citas",
   ],
   recepcionista: [
     "/dashboard",
     "/dashboard/clientes",
     "/dashboard/citas",
     "/dashboard/vehiculos",
+    "/dashboard/foro",
+  ],
+  viewer: [
+    "/dashboard",
+    "/dashboard/vehiculos",
+    "/dashboard/clientes",
+    "/dashboard/citas",
+    "/dashboard/ventas",
+    "/dashboard/contabilidad",
+    "/dashboard/facturacion",
+    "/dashboard/equipo",
     "/dashboard/foro",
   ],
 }
@@ -61,6 +91,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   vendedor: "Vendedor",
   mecanico: "Mecánico",
   recepcionista: "Recepcionista",
+  viewer: "Visor (solo lectura)",
 }
 
 export function getRoleLabel(role: UserRole): string {
@@ -72,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loaded, setLoaded] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
+  const store = useStore()
 
   // Load user from localStorage on mount
   useEffect(() => {
@@ -102,16 +134,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [loaded, user, pathname, router])
 
-  function login(email: string, password: string): string | null {
-    const expectedPassword = MOCK_PASSWORDS[email]
-    if (!expectedPassword || expectedPassword !== password) {
-      return "Correo o contraseña incorrectos"
+  async function login(email: string, password: string): Promise<string | null> {
+    // Try Supabase first
+    const dbUser = await dbVerifyPassword(email, password)
+    if (dbUser) {
+      setUser(dbUser)
+      localStorage.setItem("dealerhub_user", JSON.stringify(dbUser))
+      return null
     }
-    const foundUser = users.find((u) => u.email === email)
-    if (!foundUser) return "Usuario no encontrado"
-    setUser(foundUser)
-    localStorage.setItem("dealerhub_user", JSON.stringify(foundUser))
-    return null
+    // Fallback to local mock passwords (for offline dev)
+    const expectedPassword = MOCK_PASSWORDS[email]
+    if (expectedPassword && expectedPassword === password) {
+      const foundUser = store.users.find((u) => u.email === email)
+      if (foundUser) {
+        setUser(foundUser)
+        localStorage.setItem("dealerhub_user", JSON.stringify(foundUser))
+        return null
+      }
+    }
+    return "Correo o contraseña incorrectos"
   }
 
   function logout() {
@@ -134,8 +175,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  const isViewer = user?.role === "viewer"
+
+  function canEdit(section: EditableSection): boolean {
+    if (!user) return false
+    if (isViewer) return false
+    return EDIT_PERMISSIONS[section].includes(user.role)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, hasAccess }}>
+    <AuthContext.Provider value={{ user, login, logout, hasAccess, isViewer, canEdit }}>
       {children}
     </AuthContext.Provider>
   )

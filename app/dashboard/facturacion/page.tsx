@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { sales, getClientById, getVehicleById } from "@/lib/data"
+import { useStore } from "@/lib/store"
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(amount)
@@ -40,29 +40,6 @@ interface Invoice {
   status: "emitida" | "pagada" | "pendiente";
 }
 
-// Generate invoices from completed sales
-const invoices: Invoice[] = sales
-  .filter((s) => s.status === "completada")
-  .map((sale, idx) => {
-    const client = getClientById(sale.clientId)
-    const vehicle = getVehicleById(sale.vehicleId)
-    const subtotal = sale.salePrice
-    const iva = subtotal * 0.21
-    return {
-      id: `inv-${idx + 1}`,
-      number: `FAC-2026-${String(idx + 1).padStart(4, "0")}`,
-      saleId: sale.id,
-      clientName: client?.name || "",
-      clientDni: client?.dni || "",
-      concept: `${vehicle?.brand} ${vehicle?.model} (${vehicle?.licensePlate})`,
-      subtotal,
-      iva,
-      total: subtotal + iva,
-      date: sale.saleDate,
-      status: "pagada",
-    }
-  })
-
 const statusConfig: Record<string, { label: string; className: string }> = {
   emitida: { label: "Emitida", className: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
   pagada: { label: "Pagada", className: "bg-green-500/15 text-green-600 border-green-500/20" },
@@ -70,8 +47,32 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 }
 
 export default function FacturacionPage() {
+  const { sales, getClientById, getVehicleById } = useStore()
   const [search, setSearch] = useState("")
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+
+  // Generate invoices from completed sales
+  const invoices: Invoice[] = sales
+    .filter((s) => s.status === "completada")
+    .map((sale, idx) => {
+      const client = getClientById(sale.clientId)
+      const vehicle = getVehicleById(sale.vehicleId)
+      const subtotal = sale.salePrice
+      const iva = subtotal * 0.21
+      return {
+        id: `inv-${idx + 1}`,
+        number: `FAC-2026-${String(idx + 1).padStart(4, "0")}`,
+        saleId: sale.id,
+        clientName: client?.name || "",
+        clientDni: client?.dni || "",
+        concept: `${vehicle?.brand} ${vehicle?.model} (${vehicle?.licensePlate})`,
+        subtotal,
+        iva,
+        total: subtotal + iva,
+        date: sale.saleDate,
+        status: "pagada",
+      }
+    })
 
   const filtered = invoices.filter(
     (inv) =>

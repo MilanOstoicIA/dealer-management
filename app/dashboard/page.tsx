@@ -1,3 +1,5 @@
+"use client"
+
 import {
   Car,
   Users,
@@ -11,15 +13,7 @@ import {
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  getDashboardStats,
-  appointments,
-  sales,
-  vehicles,
-  getClientById,
-  getVehicleById,
-  getUserById,
-} from "@/lib/data"
+import { useStore } from "@/lib/store"
 
 const serviceTypeLabels: Record<string, string> = {
   revision_general: "Revisión general",
@@ -50,6 +44,7 @@ function formatCurrency(amount: number): string {
 }
 
 export default function DashboardPage() {
+  const { vehicles, sales, appointments, getVehicleById, getClientById, getUserById, getDashboardStats } = useStore()
   const stats = getDashboardStats()
   const pendingAppointments = appointments
     .filter((a) => a.status === "pendiente")
@@ -58,10 +53,10 @@ export default function DashboardPage() {
   const vehiclesInShop = vehicles.filter((v) => v.status === "en_taller")
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-xl md:text-2xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Resumen general del concesionario
         </p>

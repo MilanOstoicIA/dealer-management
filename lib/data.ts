@@ -46,6 +46,13 @@ export const users: User[] = [
     phone: "645 678 901",
     createdAt: "2024-03-20",
   },
+  {
+    id: "u5",
+    name: "Visor Externo",
+    email: "viewer@dealerhub.es",
+    role: "viewer",
+    createdAt: "2024-04-01",
+  },
 ];
 
 // ─── Vehículos (15, marcas europeas) ─────────────────────────────────────────

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
   CalendarDays,
   Search,
@@ -16,6 +16,9 @@ import {
   ClipboardCheck,
   Camera,
   CheckCircle2,
+  Plus,
+  Pencil,
+  Trash2,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -34,8 +37,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { appointments, getClientById, getVehicleById, getUserById } from "@/lib/data"
-import type { Appointment, AppointmentStatus } from "@/types"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { useStore } from "@/lib/store"
+import { useAuth } from "@/lib/auth"
+import type { Appointment, AppointmentStatus, ServiceType } from "@/types"
 
 const serviceTypeLabels: Record<string, string> = {
   revision_general: "Revisión general",
@@ -56,6 +62,7 @@ const statusConfig: Record<AppointmentStatus, { label: string; className: string
 }
 
 const DAY_NAMES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+const DAY_NAMES_SHORT = ["L", "M", "X", "J", "V", "S", "D"]
 const MONTH_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
@@ -83,11 +90,155 @@ function getCalendarDays(year: number, month: number): (number | null)[] {
   return cells
 }
 
+// ─── Appointment Form Dialog ──────────────────────────────────────────────
+
+interface ApptFormProps {
+  open: boolean
+  onClose: () => void
+  appointment?: Appointment | null
+}
+
+function AppointmentFormDialog({ open, onClose, appointment }: ApptFormProps) {
+  const { clients, vehicles, users, addAppointment, updateAppointment } = useStore()
+  const isEdit = !!appointment
+  const mechanics = users.filter((u) => u.role === "mecanico")
+  const availableVehicles = vehicles.filter((v) => v.status !== "vendido")
+
+  const [form, setForm] = useState({
+    clientId: "", vehicleId: "", mechanicId: "", date: "", time: "09:00",
+    serviceType: "revision_general" as ServiceType, description: "", estimatedCost: 0, notes: "",
+  })
+
+  useEffect(() => {
+    if (appointment) {
+      const d = new Date(appointment.date)
+      setForm({
+        clientId: appointment.clientId, vehicleId: appointment.vehicleId, mechanicId: appointment.mechanicId,
+        date: d.toISOString().split("T")[0], time: d.toTimeString().slice(0, 5),
+        serviceType: appointment.serviceType, description: appointment.description,
+        estimatedCost: appointment.estimatedCost, notes: appointment.notes || "",
+      })
+    } else {
+      setForm({
+        clientId: "", vehicleId: "", mechanicId: mechanics[0]?.id || "", date: new Date().toISOString().split("T")[0],
+        time: "09:00", serviceType: "revision_general", description: "", estimatedCost: 0, notes: "",
+      })
+    }
+  }, [appointment, open])
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.clientId || !form.vehicleId || !form.date) return
+    const dateTime = new Date(`${form.date}T${form.time}:00`).toISOString()
+    const data = {
+      clientId: form.clientId, vehicleId: form.vehicleId, mechanicId: form.mechanicId,
+      date: dateTime, serviceType: form.serviceType, description: form.description,
+      estimatedCost: form.estimatedCost, notes: form.notes || undefined, status: "pendiente" as AppointmentStatus,
+    }
+    if (isEdit) {
+      updateAppointment(appointment.id, data)
+    } else {
+      addAppointment(data)
+    }
+    onClose()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={() => onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarDays className="h-5 w-5" />
+            {isEdit ? "Editar cita" : "Nueva cita"}
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Client */}
+          <div className="space-y-1.5">
+            <Label>Cliente *</Label>
+            <Select value={form.clientId} onValueChange={(v) => v && setForm((f) => ({ ...f, clientId: v }))}>
+              <SelectTrigger><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
+              <SelectContent>
+                {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Vehicle */}
+          <div className="space-y-1.5">
+            <Label>Vehículo *</Label>
+            <Select value={form.vehicleId} onValueChange={(v) => v && setForm((f) => ({ ...f, vehicleId: v }))}>
+              <SelectTrigger><SelectValue placeholder="Seleccionar vehículo" /></SelectTrigger>
+              <SelectContent>
+                {availableVehicles.map((v) => <SelectItem key={v.id} value={v.id}>{v.brand} {v.model} ({v.licensePlate})</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Date + Time + Mechanic */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label>Fecha *</Label>
+              <Input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Hora</Label>
+              <Input type="time" value={form.time} onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Mecánico</Label>
+              <Select value={form.mechanicId} onValueChange={(v) => v && setForm((f) => ({ ...f, mechanicId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Mecánico" /></SelectTrigger>
+                <SelectContent>
+                  {mechanics.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Service type + Cost */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Tipo de servicio</Label>
+              <Select value={form.serviceType} onValueChange={(v) => v && setForm((f) => ({ ...f, serviceType: v as ServiceType }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(serviceTypeLabels).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Coste estimado (€)</Label>
+              <Input type="number" value={form.estimatedCost} onChange={(e) => setForm((f) => ({ ...f, estimatedCost: Number(e.target.value) }))} min={0} step={10} />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <Label>Descripción</Label>
+            <Textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Detalle del trabajo a realizar..." rows={2} />
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button type="submit">{isEdit ? "Guardar cambios" : "Crear cita"}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function CitasPage() {
+  const { appointments, users, getClientById, getVehicleById, getUserById, updateAppointment, deleteExpense } = useStore()
+  const { canEdit } = useAuth()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("todos")
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [view, setView] = useState<"calendar" | "list">("calendar")
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
 
   // Calendar state
   const today = new Date()
@@ -160,33 +311,41 @@ export default function CitasPage() {
   const selectedMechanic = selectedAppointment ? getUserById(selectedAppointment.mechanicId) : null
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-6 space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Citas / Taller</h1>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Citas / Taller</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Gestión de citas y servicios de taller
           </p>
         </div>
-        <div className="flex items-center gap-1 rounded-lg border p-1">
-          <Button
-            variant={view === "calendar" ? "default" : "ghost"}
-            size="sm"
-            className="h-8 px-3"
-            onClick={() => setView("calendar")}
-          >
-            <LayoutGrid className="h-4 w-4 mr-1.5" />
-            Calendario
-          </Button>
-          <Button
-            variant={view === "list" ? "default" : "ghost"}
-            size="sm"
-            className="h-8 px-3"
-            onClick={() => setView("list")}
-          >
-            <List className="h-4 w-4 mr-1.5" />
-            Lista
-          </Button>
+        <div className="flex items-center gap-3 flex-wrap">
+          {canEdit("citas") && (
+            <Button onClick={() => { setEditingAppointment(null); setFormOpen(true) }} className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Nueva cita
+            </Button>
+          )}
+          <div className="flex items-center gap-1 rounded-lg border p-1">
+            <Button
+              variant={view === "calendar" ? "default" : "ghost"}
+              size="sm"
+              className="h-8 px-3"
+              onClick={() => setView("calendar")}
+            >
+              <LayoutGrid className="h-4 w-4 mr-1.5" />
+              Calendario
+            </Button>
+            <Button
+              variant={view === "list" ? "default" : "ghost"}
+              size="sm"
+              className="h-8 px-3"
+              onClick={() => setView("list")}
+            >
+              <List className="h-4 w-4 mr-1.5" />
+              Lista
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -253,16 +412,17 @@ export default function CitasPage() {
             <CardContent className="p-4 pt-2">
               {/* Day headers */}
               <div className="grid grid-cols-7 mb-1">
-                {DAY_NAMES.map((d) => (
+                {DAY_NAMES.map((d, i) => (
                   <div key={d} className="text-center text-xs font-medium text-muted-foreground py-2">
-                    {d}
+                    <span className="hidden md:inline">{d}</span>
+                    <span className="md:hidden">{DAY_NAMES_SHORT[i]}</span>
                   </div>
                 ))}
               </div>
               {/* Day cells */}
               <div className="grid grid-cols-7">
                 {calendarDays.map((day, idx) => {
-                  if (day === null) return <div key={`empty-${idx}`} className="h-20 border-t border-border/30" />
+                  if (day === null) return <div key={`empty-${idx}`} className="h-14 md:h-20 border-t border-border/30" />
                   const dayDate = new Date(calYear, calMonth, day)
                   const isToday = isSameDay(dayDate, today)
                   const isSelected = selectedDate && isSameDay(dayDate, selectedDate)
@@ -272,7 +432,7 @@ export default function CitasPage() {
                   return (
                     <div
                       key={`day-${day}`}
-                      className={`h-20 border-t border-border/30 p-1 cursor-pointer transition-colors hover:bg-muted/40 ${
+                      className={`h-14 md:h-20 border-t border-border/30 p-1 cursor-pointer transition-colors hover:bg-muted/40 ${
                         isSelected ? "bg-primary/10 ring-1 ring-primary/30" : ""
                       } ${isWeekend ? "bg-muted/20" : ""}`}
                       onClick={() => setSelectedDate(dayDate)}
@@ -390,7 +550,7 @@ export default function CitasPage() {
         <>
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <div className="relative flex-1 min-w-0 w-full md:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar por cliente, vehículo o matrícula..."
@@ -638,10 +798,91 @@ export default function CitasPage() {
                   <p className="text-sm mt-1 bg-muted/50 rounded-lg p-3">{selectedAppointment.notes}</p>
                 </div>
               )}
+
+              {/* Action buttons for pending/in-progress appointments */}
+              {(selectedAppointment.status === "pendiente" || selectedAppointment.status === "en_progreso") && (
+                <div className="space-y-3 border-t pt-4">
+                  {/* Assign mechanic */}
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <Wrench className="h-3.5 w-3.5" />
+                      Asignar mecánico
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Select defaultValue={selectedAppointment.mechanicId}>
+                        <SelectTrigger className="h-9 flex-1">
+                          <SelectValue placeholder="Seleccionar mecánico" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {users.filter((u) => u.role === "mecanico").map((m) => (
+                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button size="sm" variant="outline">Asignar</Button>
+                    </div>
+                  </div>
+
+                  {/* Close appointment workflow */}
+                  <div className="rounded-lg border border-orange-500/20 bg-orange-500/5 p-4 space-y-3">
+                    <p className="text-xs font-semibold text-orange-600 uppercase tracking-wider flex items-center gap-1.5">
+                      <ClipboardCheck className="h-3.5 w-3.5" />
+                      Cerrar cita (obligatorio para completar)
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      El mecánico debe rellenar los trabajos realizados, piezas cambiadas, km del vehículo y adjuntar fotos antes de cerrar.
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
+                          <span className="text-[9px] font-bold text-muted-foreground">1</span>
+                        </div>
+                        <span>Listar trabajos realizados y piezas cambiadas</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
+                          <span className="text-[9px] font-bold text-muted-foreground">2</span>
+                        </div>
+                        <span>Registrar kilómetros del vehículo</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
+                          <span className="text-[9px] font-bold text-muted-foreground">3</span>
+                        </div>
+                        <span>Adjuntar fotos del trabajo (obligatorio)</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
+                          <span className="text-[9px] font-bold text-muted-foreground">4</span>
+                        </div>
+                        <span>Añadir notas del mecánico</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="h-5 w-5 rounded-full border-2 border-green-600/30 flex items-center justify-center">
+                          <CheckCircle2 className="h-3 w-3 text-green-600" />
+                        </div>
+                        <span className="font-medium text-green-600">Se genera borrador de factura automáticamente</span>
+                      </div>
+                    </div>
+                    <Button size="sm" className="w-full mt-2 gap-1.5" disabled>
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Cerrar cita y generar factura
+                      <Badge variant="secondary" className="text-[9px] ml-1">Supabase</Badge>
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Appointment Form Dialog */}
+      <AppointmentFormDialog
+        open={formOpen}
+        onClose={() => { setFormOpen(false); setEditingAppointment(null) }}
+        appointment={editingAppointment}
+      />
     </div>
   )
 }

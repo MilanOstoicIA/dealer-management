@@ -1,6 +1,6 @@
 // ─── Roles de usuario ────────────────────────────────────────────────────────
 
-export type UserRole = "admin" | "vendedor" | "mecanico" | "recepcionista";
+export type UserRole = "admin" | "vendedor" | "mecanico" | "recepcionista" | "viewer";
 
 export interface User {
   id: string;

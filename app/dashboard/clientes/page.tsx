@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Users, Mail, Phone, MapPin, Car, Wrench, ShoppingCart, CalendarDays, Gauge, Droplets, CircleDot } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Search, Users, Mail, Phone, MapPin, Car, Wrench, ShoppingCart, CalendarDays, Gauge, Droplets, CircleDot, Plus, Pencil, Trash2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
@@ -20,7 +20,11 @@ import {
 } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { clients, sales, appointments, getVehicleById, getUserById, getServiceRecordsByVehicle, getClientVehicleInfo } from "@/lib/data"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { useStore } from "@/lib/store"
+import { useAuth } from "@/lib/auth"
 import type { Client, Sale, Appointment } from "@/types"
 
 const serviceTypeLabels: Record<string, string> = {
@@ -69,6 +73,8 @@ function ClientDetail({
   clientSales: Sale[]
   clientAppointments: Appointment[]
 }) {
+  const { getVehicleById, getUserById, getServiceRecordsByVehicle, getClientVehicleInfoFn } = useStore()
+
   // Get unique vehicle IDs from sales and appointments
   const vehicleIds = [
     ...new Set([
@@ -112,7 +118,7 @@ function ClientDetail({
             {vehicleIds.map((vId) => {
               const vehicle = getVehicleById(vId)
               if (!vehicle) return null
-              const tracking = getClientVehicleInfo(vId)
+              const tracking = getClientVehicleInfoFn(vId)
               const records = getServiceRecordsByVehicle(vId)
 
               return (
@@ -260,6 +266,101 @@ function ClientDetail({
   )
 }
 
+// ─── Client Form Dialog ───────────────────────────────────────────────────
+
+interface ClientFormProps {
+  open: boolean
+  onClose: () => void
+  client?: Client | null
+}
+
+const emptyClientForm = {
+  name: "", email: "", phone: "", dni: "", address: "", city: "", postalCode: "", notes: "",
+}
+
+function ClientFormDialog({ open, onClose, client }: ClientFormProps) {
+  const { addClient, updateClient } = useStore()
+  const isEdit = !!client
+  const [form, setForm] = useState(emptyClientForm)
+
+  useEffect(() => {
+    if (client) {
+      setForm({
+        name: client.name, email: client.email, phone: client.phone, dni: client.dni,
+        address: client.address, city: client.city, postalCode: client.postalCode, notes: client.notes || "",
+      })
+    } else {
+      setForm(emptyClientForm)
+    }
+  }, [client, open])
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.name || !form.phone) return
+    if (isEdit) {
+      updateClient(client.id, form)
+    } else {
+      addClient(form)
+    }
+    onClose()
+  }
+
+  const set = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }))
+
+  return (
+    <Dialog open={open} onOpenChange={() => onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            {isEdit ? "Editar cliente" : "Nuevo cliente"}
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5 col-span-2">
+              <Label>Nombre completo *</Label>
+              <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Ej: Antonio Rodríguez García" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Teléfono *</Label>
+              <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Ej: 612 345 678" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label>DNI / NIE</Label>
+              <Input value={form.dni} onChange={(e) => set("dni", e.target.value)} placeholder="Ej: 12345678A" />
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label>Email</Label>
+              <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="correo@ejemplo.com" />
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label>Dirección</Label>
+              <Input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="Calle, número, piso..." />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Ciudad</Label>
+              <Input value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="Ej: Madrid" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Código postal</Label>
+              <Input value={form.postalCode} onChange={(e) => set("postalCode", e.target.value)} placeholder="Ej: 28001" />
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label>Notas</Label>
+              <Textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Observaciones sobre el cliente..." rows={2} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button type="submit">{isEdit ? "Guardar cambios" : "Añadir cliente"}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function getInitials(name: string): string {
   return name
     .split(" ")
@@ -270,8 +371,12 @@ function getInitials(name: string): string {
 }
 
 export default function ClientesPage() {
+  const { clients, sales, appointments, deleteClient } = useStore()
+  const { canEdit } = useAuth()
   const [search, setSearch] = useState("")
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingClient, setEditingClient] = useState<Client | null>(null)
 
   const filtered = clients.filter(
     (c) =>
@@ -289,18 +394,24 @@ export default function ClientesPage() {
     : []
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-6 space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Clientes</h1>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Clientes</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {clients.length} clientes registrados
           </p>
         </div>
+        {canEdit("clientes") && (
+          <Button onClick={() => { setEditingClient(null); setFormOpen(true) }} className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            Nuevo cliente
+          </Button>
+        )}
       </div>
 
       {/* Search */}
-      <div className="relative max-w-sm">
+      <div className="relative w-full md:max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Buscar por nombre, email, teléfono o DNI..."
@@ -310,8 +421,37 @@ export default function ClientesPage() {
         />
       </div>
 
-      {/* Table */}
-      <Card className="border-border/50">
+      {/* Mobile cards */}
+      <div className="space-y-3 md:hidden">
+        {filtered.map((client) => (
+          <Card key={client.id} className="border-border/50 cursor-pointer" onClick={() => setSelectedClient(client)}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-8 w-8 shrink-0">
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                    {getInitials(client.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{client.name}</p>
+                  <p className="text-xs text-muted-foreground">{client.phone}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xs text-muted-foreground">{client.city}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        {filtered.length === 0 && (
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            No se encontraron clientes
+          </div>
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <Card className="border-border/50 hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -383,14 +523,44 @@ export default function ClientesPage() {
             </DialogTitle>
           </DialogHeader>
           {selectedClient && (
-            <ClientDetail
-              client={selectedClient}
-              clientSales={clientSales}
-              clientAppointments={clientAppointments}
-            />
+            <>
+              <ClientDetail
+                client={selectedClient}
+                clientSales={clientSales}
+                clientAppointments={clientAppointments}
+              />
+              {canEdit("clientes") && (
+                <div className="flex justify-end gap-2 border-t pt-3 mt-2">
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                    setSelectedClient(null)
+                    setEditingClient(selectedClient)
+                    setFormOpen(true)
+                  }}>
+                    <Pencil className="h-3.5 w-3.5" />
+                    Editar
+                  </Button>
+                  <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => {
+                    if (confirm("¿Eliminar este cliente? Esta acción no se puede deshacer.")) {
+                      deleteClient(selectedClient.id)
+                      setSelectedClient(null)
+                    }
+                  }}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Eliminar
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Client Form Dialog */}
+      <ClientFormDialog
+        open={formOpen}
+        onClose={() => { setFormOpen(false); setEditingClient(null) }}
+        client={editingClient}
+      />
     </div>
   )
 }

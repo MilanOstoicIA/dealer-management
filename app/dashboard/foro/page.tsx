@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { forumPosts } from "@/lib/data"
+import { useStore } from "@/lib/store"
 import type { ForumPost, ForumPostStatus } from "@/types"
 
 const statusConfig: Record<ForumPostStatus, { label: string; className: string }> = {
@@ -26,6 +26,7 @@ function formatCurrency(amount: number): string {
 }
 
 export default function ForoPage() {
+  const { forumPosts } = useStore()
   const [search, setSearch] = useState("")
   const [selectedPost, setSelectedPost] = useState<ForumPost | null>(null)
 
