@@ -332,13 +332,28 @@ export default function ContabilidadPage() {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={formatShort} />
-                    <Tooltip formatter={(value) => formatCurrency(Number(value))} contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "13px" }} />
                     <Legend wrapperStyle={{ fontSize: "13px", paddingTop: "10px" }} />
                     <Bar dataKey="ingresos" name="Ingresos" fill="#22c55e" radius={[6, 6, 0, 0]} />
                     <Bar dataKey="gastos" name="Gastos" fill="#ef4444" radius={[6, 6, 0, 0]} />
                     <Bar dataKey="comisiones" name="Comisiones" fill="#3b82f6" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+              {/* Monthly summary */}
+              <div className="overflow-x-auto mt-3">
+                <div className="flex gap-3 min-w-max px-1">
+                  {monthlyData.filter(d => d.ingresos > 0 || d.gastos > 0).map((d) => (
+                    <div key={d.name} className="rounded-lg border p-3 min-w-[120px] text-center">
+                      <p className="text-xs font-semibold mb-1.5">{d.name}</p>
+                      <p className="text-xs text-green-600 font-medium">{formatCurrency(d.ingresos)}</p>
+                      <p className="text-xs text-red-500 font-medium">{formatCurrency(d.gastos)}</p>
+                      <p className="text-xs text-blue-600 font-medium">{formatCurrency(d.comisiones)}</p>
+                      <p className={`text-xs font-bold mt-1 pt-1 border-t ${d.beneficio >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        {formatCurrency(d.beneficio)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -361,10 +376,22 @@ export default function ContabilidadPage() {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={formatShort} />
-                    <Tooltip formatter={(value) => formatCurrency(Number(value))} contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "13px" }} />
                     <Area type="monotone" dataKey="beneficio" name="Beneficio" stroke="#22c55e" strokeWidth={2} fill="url(#profitGrad)" />
                   </AreaChart>
                 </ResponsiveContainer>
+              </div>
+              {/* Benefit summary */}
+              <div className="overflow-x-auto mt-3">
+                <div className="flex gap-3 min-w-max px-1">
+                  {monthlyData.filter(d => d.ingresos > 0 || d.gastos > 0).map((d) => (
+                    <div key={d.name} className="rounded-lg border p-3 min-w-[100px] text-center">
+                      <p className="text-xs font-semibold mb-1.5">{d.name}</p>
+                      <p className={`text-xs font-bold ${d.beneficio >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        {formatCurrency(d.beneficio)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>

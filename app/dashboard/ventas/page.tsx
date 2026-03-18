@@ -56,15 +56,88 @@ interface SaleFormProps {
   onClose: () => void
 }
 
+// ─── New Client Dialog (full form) ────────────────────────────────────────
+function NewClientDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { addClient } = useStore()
+  const [clientForm, setClientForm] = useState({
+    name: "", phone: "", email: "", dni: "", address: "", city: "", postalCode: "", notes: "",
+  })
+
+  useEffect(() => {
+    if (open) setClientForm({ name: "", phone: "", email: "", dni: "", address: "", city: "", postalCode: "", notes: "" })
+  }, [open])
+
+  const setField = (field: string, value: string) => setClientForm((f) => ({ ...f, [field]: value }))
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!clientForm.name || !clientForm.phone) return
+    addClient(clientForm)
+    onClose()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={() => onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Nuevo cliente
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5 col-span-2">
+              <Label>Nombre completo *</Label>
+              <Input value={clientForm.name} onChange={(e) => setField("name", e.target.value)} placeholder="Nombre y apellidos" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Teléfono *</Label>
+              <Input value={clientForm.phone} onChange={(e) => setField("phone", e.target.value)} placeholder="612 345 678" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label>DNI/NIF</Label>
+              <Input value={clientForm.dni} onChange={(e) => setField("dni", e.target.value)} placeholder="12345678A" />
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label>Email</Label>
+              <Input type="email" value={clientForm.email} onChange={(e) => setField("email", e.target.value)} placeholder="correo@ejemplo.es" />
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label>Dirección</Label>
+              <Input value={clientForm.address} onChange={(e) => setField("address", e.target.value)} placeholder="Calle, número..." />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Ciudad</Label>
+              <Input value={clientForm.city} onChange={(e) => setField("city", e.target.value)} placeholder="Madrid" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Código postal</Label>
+              <Input value={clientForm.postalCode} onChange={(e) => setField("postalCode", e.target.value)} placeholder="28001" />
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label>Notas</Label>
+              <Textarea value={clientForm.notes} onChange={(e) => setField("notes", e.target.value)} placeholder="Observaciones..." rows={2} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button type="submit">Crear cliente</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function SaleFormDialog({ open, onClose }: SaleFormProps) {
-  const { clients, vehicles, users, createSale, addClient } = useStore()
+  const { clients, vehicles, users, createSale } = useStore()
   const { user } = useAuth()
   const isAdmin = user?.role === "admin"
   const sellers = users.filter((u) => u.role === "vendedor" || u.role === "admin")
   const availableVehicles = vehicles.filter((v) => v.status === "disponible")
-  const [showNewClient, setShowNewClient] = useState(false)
-  const [newClientName, setNewClientName] = useState("")
-  const [newClientPhone, setNewClientPhone] = useState("")
+  const [newClientOpen, setNewClientOpen] = useState(false)
+  const [prevClientCount, setPrevClientCount] = useState(clients.length)
 
   const [form, setForm] = useState({
     clientId: "", vehicleId: "", sellerId: "", saleDate: new Date().toISOString().split("T")[0],
@@ -76,10 +149,11 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
 
   // Auto-select newly created client
   useEffect(() => {
-    if (!showNewClient && !form.clientId && clients.length > 0) {
+    if (clients.length > prevClientCount && clients.length > 0) {
       const latest = clients[clients.length - 1]
       if (latest) setForm((f) => ({ ...f, clientId: latest.id }))
     }
+    setPrevClientCount(clients.length)
   }, [clients.length])
 
   useEffect(() => {
@@ -129,35 +203,17 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Cliente *</Label>
-              {!showNewClient ? (
-                <div className="flex gap-2">
-                  <Select value={form.clientId} onValueChange={(v) => v && setForm((f) => ({ ...f, clientId: v }))}>
-                    <SelectTrigger className="flex-1"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                    <SelectContent>
-                      {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Button type="button" variant="outline" size="icon" className="shrink-0 h-9 w-9" title="Crear nuevo cliente" onClick={() => setShowNewClient(true)}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2 rounded-lg border p-3 bg-muted/30">
-                  <p className="text-xs font-medium">Nuevo cliente</p>
-                  <Input placeholder="Nombre *" value={newClientName} onChange={(e) => setNewClientName(e.target.value)} className="h-8 text-sm" />
-                  <Input placeholder="Teléfono *" value={newClientPhone} onChange={(e) => setNewClientPhone(e.target.value)} className="h-8 text-sm" />
-                  <div className="flex gap-2">
-                    <Button type="button" size="sm" className="h-7 text-xs" onClick={() => {
-                      if (!newClientName || !newClientPhone) return
-                      addClient({ name: newClientName, phone: newClientPhone, email: "", dni: "", address: "", city: "", postalCode: "" })
-                      setShowNewClient(false)
-                      setNewClientName("")
-                      setNewClientPhone("")
-                    }}>Crear</Button>
-                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowNewClient(false)}>Cancelar</Button>
-                  </div>
-                </div>
-              )}
+              <div className="flex gap-2">
+                <Select value={form.clientId} onValueChange={(v) => v && setForm((f) => ({ ...f, clientId: v }))}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                  <SelectContent>
+                    {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button type="button" variant="outline" size="icon" className="shrink-0 h-9 w-9" title="Crear nuevo cliente" onClick={() => setNewClientOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Vendedor *</Label>
@@ -208,6 +264,7 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
           </div>
         </form>
       </DialogContent>
+      <NewClientDialog open={newClientOpen} onClose={() => setNewClientOpen(false)} />
     </Dialog>
   )
 }

@@ -660,7 +660,7 @@ function VehicleFormDialog({ open, onClose, vehicle }: VehicleFormProps) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function VehiculosPage() {
-  const { vehicles, deleteVehicle } = useStore()
+  const { vehicles, deleteVehicle, appointments, getUserById } = useStore()
   const { canEdit } = useAuth()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("todos")
@@ -668,8 +668,23 @@ export default function VehiculosPage() {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null)
+  const [activeSection, setActiveSection] = useState<"stock" | "taller">("stock")
+
+  const stockCount = vehicles.filter((v) => v.status !== "vendido").length
+  const tallerCount = vehicles.filter((v) => v.status === "en_taller").length
+
+  // Build a map of vehicleId -> active appointment for the "En taller" tab
+  const tallerAppointmentMap = new Map(
+    appointments
+      .filter((a) => a.status === "pendiente" || a.status === "en_progreso")
+      .map((a) => [a.vehicleId, a])
+  )
 
   const filtered = vehicles.filter((v) => {
+    // Section filter
+    if (activeSection === "stock" && v.status === "vendido") return false
+    if (activeSection === "taller" && v.status !== "en_taller") return false
+
     const matchesSearch =
       v.brand.toLowerCase().includes(search.toLowerCase()) ||
       v.model.toLowerCase().includes(search.toLowerCase()) ||
@@ -694,6 +709,18 @@ export default function VehiculosPage() {
             Nuevo vehículo
           </Button>
         )}
+      </div>
+
+      {/* Section tabs */}
+      <div className="flex items-center gap-1 rounded-lg border p-1 w-fit">
+        <Button variant={activeSection === "stock" ? "default" : "ghost"} size="sm" className="h-9 px-4" onClick={() => setActiveSection("stock")}>
+          <Car className="h-4 w-4 mr-1.5" />
+          Stock ({stockCount})
+        </Button>
+        <Button variant={activeSection === "taller" ? "default" : "ghost"} size="sm" className="h-9 px-4" onClick={() => setActiveSection("taller")}>
+          <Wrench className="h-4 w-4 mr-1.5" />
+          En taller ({tallerCount})
+        </Button>
       </div>
 
       {/* Filters */}
@@ -738,6 +765,8 @@ export default function VehiculosPage() {
       <div className="space-y-3 md:hidden">
         {filtered.map((vehicle) => {
           const cfg = statusConfig[vehicle.status]
+          const appt = activeSection === "taller" ? tallerAppointmentMap.get(vehicle.id) : undefined
+          const mechanic = appt ? getUserById(appt.mechanicId) : undefined
           return (
             <Card key={vehicle.id} className="border-border/50 cursor-pointer" onClick={() => setSelectedVehicle(vehicle)}>
               <CardContent className="p-4">
@@ -758,6 +787,13 @@ export default function VehiculosPage() {
                     </span>
                   </div>
                 </div>
+                {activeSection === "taller" && appt && (
+                  <div className="mt-2 pt-2 border-t flex items-center gap-2 text-xs text-muted-foreground">
+                    <Wrench className="h-3 w-3 text-orange-600 shrink-0" />
+                    <span>{serviceTypeLabels[appt.serviceType] || appt.serviceType}</span>
+                    {mechanic && <span>· {mechanic.name}</span>}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )
@@ -782,11 +818,15 @@ export default function VehiculosPage() {
                 <TableHead>Km</TableHead>
                 <TableHead>Precio</TableHead>
                 <TableHead>Estado</TableHead>
+                {activeSection === "taller" && <TableHead>Servicio</TableHead>}
+                {activeSection === "taller" && <TableHead>Mecánico</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((vehicle) => {
                 const cfg = statusConfig[vehicle.status]
+                const appt = activeSection === "taller" ? tallerAppointmentMap.get(vehicle.id) : undefined
+                const mechanic = appt ? getUserById(appt.mechanicId) : undefined
                 return (
                   <TableRow
                     key={vehicle.id}
@@ -814,12 +854,22 @@ export default function VehiculosPage() {
                         {cfg.label}
                       </span>
                     </TableCell>
+                    {activeSection === "taller" && (
+                      <TableCell className="text-sm">
+                        {appt ? (serviceTypeLabels[appt.serviceType] || appt.serviceType) : "—"}
+                      </TableCell>
+                    )}
+                    {activeSection === "taller" && (
+                      <TableCell className="text-sm">
+                        {mechanic ? mechanic.name : "—"}
+                      </TableCell>
+                    )}
                   </TableRow>
                 )
               })}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={activeSection === "taller" ? 9 : 7} className="h-24 text-center text-muted-foreground">
                     No se encontraron vehículos
                   </TableCell>
                 </TableRow>

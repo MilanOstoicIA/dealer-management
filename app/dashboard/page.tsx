@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   Car,
   Users,
@@ -7,6 +9,7 @@ import {
   TrendingUp,
   Euro,
   AlertCircle,
+  ArrowRight,
   CheckCircle,
   Clock,
   ShoppingCart,
@@ -64,68 +67,76 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="border-border/50">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Vehículos totales
+        <Link href="/dashboard/vehiculos">
+          <Card className="border-border/50 cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Vehículos totales
+                </p>
+                <Car className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="mt-2 text-2xl font-bold tracking-tight">{stats.totalVehicles}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {stats.availableVehicles} disponibles · {stats.vehiclesSold} vendidos
               </p>
-              <Car className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <p className="mt-2 text-2xl font-bold tracking-tight">{stats.totalVehicles}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {stats.availableVehicles} disponibles · {stats.vehiclesSold} vendidos
-            </p>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="border-border/50">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Clientes
+        <Link href="/dashboard/clientes">
+          <Card className="border-border/50 cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Clientes
+                </p>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="mt-2 text-2xl font-bold tracking-tight">{stats.totalClients}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Clientes registrados
               </p>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <p className="mt-2 text-2xl font-bold tracking-tight">{stats.totalClients}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Clientes registrados
-            </p>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="border-border/50">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Citas pendientes
+        <Link href="/dashboard/citas">
+          <Card className="border-border/50 cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Citas pendientes
+                </p>
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="mt-2 text-2xl font-bold tracking-tight">{stats.pendingAppointments}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {vehiclesInShop.length} vehículos en taller
               </p>
-              <CalendarDays className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <p className="mt-2 text-2xl font-bold tracking-tight">{stats.pendingAppointments}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {vehiclesInShop.length} vehículos en taller
-            </p>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="border-border/50">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Ventas del mes
+        <Link href="/dashboard/ventas">
+          <Card className="border-border/50 cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Ventas del mes
+                </p>
+                <Euro className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="mt-2 text-2xl font-bold tracking-tight">
+                {formatCurrency(stats.monthlySalesRevenue)}
               </p>
-              <Euro className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <p className="mt-2 text-2xl font-bold tracking-tight">
-              {formatCurrency(stats.monthlySalesRevenue)}
-            </p>
-            <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
-              <TrendingUp className="h-3 w-3" />
-              {formatCurrency(stats.monthlyCommissions)} en comisiones
-            </p>
-          </CardContent>
-        </Card>
+              <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                <TrendingUp className="h-3 w-3" />
+                {formatCurrency(stats.monthlyCommissions)} en comisiones
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -147,7 +158,7 @@ export default function DashboardPage() {
                 const cfg = appointmentStatusConfig[appt.status]
                 const date = new Date(appt.date)
                 return (
-                  <div key={appt.id} className="flex items-center justify-between px-6 py-3.5">
+                  <Link key={appt.id} href="/dashboard/citas" className="flex items-center justify-between px-6 py-3.5 cursor-pointer hover:bg-muted/50 transition-colors">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">{client?.name}</p>
@@ -164,7 +175,7 @@ export default function DashboardPage() {
                         {cfg.label}
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 )
               })}
               {pendingAppointments.length === 0 && (
@@ -172,6 +183,12 @@ export default function DashboardPage() {
                   No hay citas pendientes
                 </div>
               )}
+            </div>
+            <div className="border-t border-border/50">
+              <Link href="/dashboard/citas" className="flex items-center justify-center gap-1 px-6 py-3 text-xs text-primary hover:bg-muted/30 font-medium">
+                Ver todas las citas
+                <ArrowRight className="h-3 w-3" />
+              </Link>
             </div>
           </CardContent>
         </Card>
@@ -194,7 +211,7 @@ export default function DashboardPage() {
                 const seller = getUserById(sale.sellerId)
                 const cfg = saleStatusConfig[sale.status]
                 return (
-                  <div key={sale.id} className="flex items-center justify-between px-6 py-3.5">
+                  <Link key={sale.id} href="/dashboard/ventas" className="flex items-center justify-between px-6 py-3.5 cursor-pointer hover:bg-muted/50 transition-colors">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">
@@ -211,9 +228,15 @@ export default function DashboardPage() {
                         {cfg.label}
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 )
               })}
+            </div>
+            <div className="border-t border-border/50">
+              <Link href="/dashboard/ventas" className="flex items-center justify-center gap-1 px-6 py-3 text-xs text-primary hover:bg-muted/30 font-medium">
+                Ver todas las ventas
+                <ArrowRight className="h-3 w-3" />
+              </Link>
             </div>
           </CardContent>
         </Card>
@@ -221,51 +244,57 @@ export default function DashboardPage() {
 
       {/* Quick stats row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card className="border-border/50 bg-primary/5">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/15">
-                <Clock className="h-5 w-5 text-primary" />
+        <Link href="/dashboard/citas">
+          <Card className="border-border/50 bg-primary/5 cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/15">
+                  <Clock className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">En taller</p>
+                  <p className="text-xl font-bold">{vehiclesInShop.length}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">En taller</p>
-                <p className="text-xl font-bold">{vehiclesInShop.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="border-border/50 bg-green-500/5">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/15">
-                <ShoppingCart className="h-5 w-5 text-green-600" />
+        <Link href="/dashboard/ventas">
+          <Card className="border-border/50 bg-green-500/5 cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/15">
+                  <ShoppingCart className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Ventas en proceso</p>
+                  <p className="text-xl font-bold">
+                    {sales.filter((s) => s.status === "en_proceso").length}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Ventas en proceso</p>
-                <p className="text-xl font-bold">
-                  {sales.filter((s) => s.status === "en_proceso").length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="border-border/50 bg-yellow-500/5">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-500/15">
-                <AlertCircle className="h-5 w-5 text-yellow-600" />
+        <Link href="/dashboard/vehiculos">
+          <Card className="border-border/50 bg-yellow-500/5 cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-500/15">
+                  <AlertCircle className="h-5 w-5 text-yellow-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Reservados</p>
+                  <p className="text-xl font-bold">
+                    {vehicles.filter((v) => v.status === "reservado").length}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Reservados</p>
-                <p className="text-xl font-bold">
-                  {vehicles.filter((v) => v.status === "reservado").length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
     </div>
   )
