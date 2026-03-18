@@ -186,10 +186,10 @@ export default function ContabilidadPage() {
   ]
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-6 space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Contabilidad</h1>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Contabilidad</h1>
           <p className="text-sm text-muted-foreground mt-1">Resumen financiero del concesionario</p>
         </div>
         <Select value={selectedYear} onValueChange={(v) => setSelectedYear(v ?? "2026")}>
@@ -308,11 +308,11 @@ export default function ContabilidadPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 rounded-lg border p-1 w-fit">
+      <div className="flex items-center gap-1 rounded-lg border p-1 w-full overflow-x-auto md:w-fit">
         {tabs.map((tab) => (
-          <Button key={tab.id} variant={activeTab === tab.id ? "default" : "ghost"} size="sm" className="h-9 px-4" onClick={() => setActiveTab(tab.id)}>
+          <Button key={tab.id} variant={activeTab === tab.id ? "default" : "ghost"} size="sm" className="h-9 px-3 md:px-4 shrink-0" onClick={() => setActiveTab(tab.id)}>
             {tab.icon}
-            <span className="ml-1.5">{tab.label}</span>
+            <span className="ml-1.5 text-xs md:text-sm">{tab.label}</span>
           </Button>
         ))}
       </div>
@@ -396,7 +396,25 @@ export default function ContabilidadPage() {
               </div>
             </CardContent>
           </Card>
-          <Card className="border-border/50">
+          {/* Mobile cards */}
+          <div className="space-y-3 md:hidden">
+            {sellerStats.map(({ seller, salesCount, totalRevenue: rev, totalCommission, avgCommissionRate, avgSalePrice }) => (
+              <Card key={seller.id} className="border-border/50">
+                <CardContent className="p-4">
+                  <p className="text-sm font-semibold">{seller.name}</p>
+                  <p className="text-xs text-muted-foreground mb-2">{seller.email}</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div><span className="text-muted-foreground">Ventas:</span> <span className="font-bold">{salesCount}</span></div>
+                    <div><span className="text-muted-foreground">Ingresos:</span> <span className="font-bold">{formatCurrency(rev)}</span></div>
+                    <div><span className="text-muted-foreground">Comisión:</span> <Badge variant="secondary" className="bg-green-500/10 text-green-600 text-[10px]">{avgCommissionRate}%</Badge></div>
+                    <div><span className="text-muted-foreground">Ticket:</span> <span className="font-medium">{formatCurrency(avgSalePrice)}</span></div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          {/* Desktop table */}
+          <Card className="border-border/50 hidden md:block">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <Users className="h-4 w-4" /> Rendimiento por vendedor
@@ -487,7 +505,34 @@ export default function ContabilidadPage() {
               </CardContent>
             </Card>
           </div>
-          <Card className="border-border/50">
+          {/* Mobile expense cards */}
+          <div className="space-y-2 md:hidden">
+            <p className="text-base font-semibold flex items-center gap-2">
+              <Receipt className="h-4 w-4" /> Todos los gastos
+            </p>
+            {[...expenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((e) => {
+              const vehicle = e.vehicleId ? getVehicleById(e.vehicleId) : null
+              return (
+                <Card key={e.id} className="border-border/50">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{e.description}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="secondary" className="text-[10px]">{expenseCategoryLabels[e.category] || e.category}</Badge>
+                          <span className="text-[10px] text-muted-foreground">{new Date(e.date).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}</span>
+                        </div>
+                        {vehicle && <p className="text-[10px] text-muted-foreground mt-0.5">{vehicle.brand} {vehicle.model}</p>}
+                      </div>
+                      <p className="text-sm font-bold text-destructive shrink-0 ml-3">{formatCurrency(e.amount)}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+          {/* Desktop expense table */}
+          <Card className="border-border/50 hidden md:block">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <Receipt className="h-4 w-4" /> Todos los gastos
@@ -525,64 +570,99 @@ export default function ContabilidadPage() {
       )}
 
       {activeTab === "historial" && (
-        <Card className="border-border/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Table2 className="h-4 w-4" /> Historial completo de ventas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Vehículo</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Vendedor</TableHead>
-                  <TableHead>Método</TableHead>
-                  <TableHead>Precio venta</TableHead>
-                  <TableHead>Coste</TableHead>
-                  <TableHead>Comisión</TableHead>
-                  <TableHead>Margen</TableHead>
-                  <TableHead>Estado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedSales.map((sale) => {
-                  const vehicle = getVehicleById(sale.vehicleId)
-                  const client = getClientById(sale.clientId)
-                  const seller = getUserById(sale.sellerId)
-                  const purchasePrice = vehicle?.purchasePrice ?? 0
-                  const margin = sale.salePrice - purchasePrice - sale.commission
-                  const statusCfg: Record<string, { label: string; cls: string }> = {
-                    en_proceso: { label: "En proceso", cls: "bg-yellow-500/15 text-yellow-600" },
-                    completada: { label: "Completada", cls: "bg-green-500/15 text-green-600" },
-                    cancelada: { label: "Cancelada", cls: "bg-red-500/15 text-red-500" },
-                  }
-                  const cfg = statusCfg[sale.status] || statusCfg.en_proceso
-                  const payLabels: Record<string, string> = { contado: "Contado", "financiación": "Financiación", leasing: "Leasing" }
-                  return (
-                    <TableRow key={sale.id}>
-                      <TableCell className="text-xs">{new Date(sale.saleDate).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}</TableCell>
-                      <TableCell>
-                        <p className="text-sm font-medium">{vehicle?.brand} {vehicle?.model}</p>
-                        <p className="text-[10px] text-muted-foreground">{vehicle?.licensePlate}</p>
-                      </TableCell>
-                      <TableCell className="text-sm">{client?.name}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{seller?.name?.split(" ")[0]}</TableCell>
-                      <TableCell className="text-xs">{payLabels[sale.paymentMethod] || sale.paymentMethod}</TableCell>
-                      <TableCell className="text-sm font-bold">{formatCurrency(sale.salePrice)}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{formatCurrency(purchasePrice)}</TableCell>
-                      <TableCell className="text-xs text-green-600">{sale.commissionRate}% ({formatCurrency(sale.commission)})</TableCell>
-                      <TableCell className={`text-sm font-bold ${margin >= 0 ? "text-green-600" : "text-destructive"}`}>{formatCurrency(margin)}</TableCell>
-                      <TableCell><Badge variant="secondary" className={`text-[10px] ${cfg.cls}`}>{cfg.label}</Badge></TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <>
+          {/* Mobile history cards */}
+          <div className="space-y-2 md:hidden">
+            {sortedSales.map((sale) => {
+              const vehicle = getVehicleById(sale.vehicleId)
+              const client = getClientById(sale.clientId)
+              const statusCfg: Record<string, { label: string; cls: string }> = {
+                en_proceso: { label: "En proceso", cls: "bg-yellow-500/15 text-yellow-600" },
+                completada: { label: "Completada", cls: "bg-green-500/15 text-green-600" },
+                cancelada: { label: "Cancelada", cls: "bg-red-500/15 text-red-500" },
+              }
+              const cfg = statusCfg[sale.status] || statusCfg.en_proceso
+              return (
+                <Card key={sale.id} className="border-border/50">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{vehicle?.brand} {vehicle?.model}</p>
+                        <p className="text-xs text-muted-foreground">{client?.name}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="secondary" className={`text-[10px] ${cfg.cls}`}>{cfg.label}</Badge>
+                          <span className="text-[10px] text-muted-foreground">
+                            {new Date(sale.saleDate).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-sm font-bold shrink-0 ml-3">{formatCurrency(sale.salePrice)}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+          {/* Desktop history table */}
+          <Card className="border-border/50 hidden md:block">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Table2 className="h-4 w-4" /> Historial completo de ventas
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Vehículo</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Vendedor</TableHead>
+                    <TableHead>Método</TableHead>
+                    <TableHead>Precio venta</TableHead>
+                    <TableHead>Coste</TableHead>
+                    <TableHead>Comisión</TableHead>
+                    <TableHead>Margen</TableHead>
+                    <TableHead>Estado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedSales.map((sale) => {
+                    const vehicle = getVehicleById(sale.vehicleId)
+                    const client = getClientById(sale.clientId)
+                    const seller = getUserById(sale.sellerId)
+                    const purchasePrice = vehicle?.purchasePrice ?? 0
+                    const margin = sale.salePrice - purchasePrice - sale.commission
+                    const statusCfg: Record<string, { label: string; cls: string }> = {
+                      en_proceso: { label: "En proceso", cls: "bg-yellow-500/15 text-yellow-600" },
+                      completada: { label: "Completada", cls: "bg-green-500/15 text-green-600" },
+                      cancelada: { label: "Cancelada", cls: "bg-red-500/15 text-red-500" },
+                    }
+                    const cfg = statusCfg[sale.status] || statusCfg.en_proceso
+                    const payLabels: Record<string, string> = { contado: "Contado", "financiación": "Financiación", leasing: "Leasing" }
+                    return (
+                      <TableRow key={sale.id}>
+                        <TableCell className="text-xs">{new Date(sale.saleDate).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}</TableCell>
+                        <TableCell>
+                          <p className="text-sm font-medium">{vehicle?.brand} {vehicle?.model}</p>
+                          <p className="text-[10px] text-muted-foreground">{vehicle?.licensePlate}</p>
+                        </TableCell>
+                        <TableCell className="text-sm">{client?.name}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{seller?.name?.split(" ")[0]}</TableCell>
+                        <TableCell className="text-xs">{payLabels[sale.paymentMethod] || sale.paymentMethod}</TableCell>
+                        <TableCell className="text-sm font-bold">{formatCurrency(sale.salePrice)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{formatCurrency(purchasePrice)}</TableCell>
+                        <TableCell className="text-xs text-green-600">{sale.commissionRate}% ({formatCurrency(sale.commission)})</TableCell>
+                        <TableCell className={`text-sm font-bold ${margin >= 0 ? "text-green-600" : "text-destructive"}`}>{formatCurrency(margin)}</TableCell>
+                        <TableCell><Badge variant="secondary" className={`text-[10px] ${cfg.cls}`}>{cfg.label}</Badge></TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   )

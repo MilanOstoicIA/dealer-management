@@ -57,9 +57,14 @@ interface SaleFormProps {
 }
 
 function SaleFormDialog({ open, onClose }: SaleFormProps) {
-  const { clients, vehicles, users, createSale } = useStore()
+  const { clients, vehicles, users, createSale, addClient } = useStore()
+  const { user } = useAuth()
+  const isAdmin = user?.role === "admin"
   const sellers = users.filter((u) => u.role === "vendedor" || u.role === "admin")
   const availableVehicles = vehicles.filter((v) => v.status === "disponible")
+  const [showNewClient, setShowNewClient] = useState(false)
+  const [newClientName, setNewClientName] = useState("")
+  const [newClientPhone, setNewClientPhone] = useState("")
 
   const [form, setForm] = useState({
     clientId: "", vehicleId: "", sellerId: "", saleDate: new Date().toISOString().split("T")[0],
@@ -68,6 +73,14 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
 
   const selectedVehicle = vehicles.find((v) => v.id === form.vehicleId)
   const salePrice = selectedVehicle?.price || 0
+
+  // Auto-select newly created client
+  useEffect(() => {
+    if (!showNewClient && !form.clientId && clients.length > 0) {
+      const latest = clients[clients.length - 1]
+      if (latest) setForm((f) => ({ ...f, clientId: latest.id }))
+    }
+  }, [clients.length])
 
   useEffect(() => {
     if (open) {
@@ -116,12 +129,35 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Cliente *</Label>
-              <Select value={form.clientId} onValueChange={(v) => v && setForm((f) => ({ ...f, clientId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                <SelectContent>
-                  {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {!showNewClient ? (
+                <div className="flex gap-2">
+                  <Select value={form.clientId} onValueChange={(v) => v && setForm((f) => ({ ...f, clientId: v }))}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                    <SelectContent>
+                      {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="outline" size="icon" className="shrink-0 h-9 w-9" title="Crear nuevo cliente" onClick={() => setShowNewClient(true)}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2 rounded-lg border p-3 bg-muted/30">
+                  <p className="text-xs font-medium">Nuevo cliente</p>
+                  <Input placeholder="Nombre *" value={newClientName} onChange={(e) => setNewClientName(e.target.value)} className="h-8 text-sm" />
+                  <Input placeholder="Teléfono *" value={newClientPhone} onChange={(e) => setNewClientPhone(e.target.value)} className="h-8 text-sm" />
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" className="h-7 text-xs" onClick={() => {
+                      if (!newClientName || !newClientPhone) return
+                      addClient({ name: newClientName, phone: newClientPhone, email: "", dni: "", address: "", city: "", postalCode: "" })
+                      setShowNewClient(false)
+                      setNewClientName("")
+                      setNewClientPhone("")
+                    }}>Crear</Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowNewClient(false)}>Cancelar</Button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Vendedor *</Label>
@@ -133,7 +169,7 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className={`grid grid-cols-1 gap-3 ${isAdmin ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
             <div className="space-y-1.5">
               <Label>Fecha</Label>
               <Input type="date" value={form.saleDate} onChange={(e) => setForm((f) => ({ ...f, saleDate: e.target.value }))} />
@@ -149,15 +185,17 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>Comisión (%)</Label>
-              <Input type="number" value={form.commissionRate} onChange={(e) => setForm((f) => ({ ...f, commissionRate: Number(e.target.value) }))} min={0} max={100} step={0.5} />
-            </div>
+            {isAdmin && (
+              <div className="space-y-1.5">
+                <Label>Comisión (%)</Label>
+                <Input type="number" value={form.commissionRate} onChange={(e) => setForm((f) => ({ ...f, commissionRate: Number(e.target.value) }))} min={0} max={100} step={0.5} />
+              </div>
+            )}
           </div>
           {selectedVehicle && (
             <div className="rounded-lg bg-muted/50 p-3 text-sm">
               <p>Precio: <span className="font-bold">{formatCurrency(salePrice)}</span></p>
-              <p className="text-xs text-muted-foreground">Comisión: {formatCurrency(salePrice * (form.commissionRate / 100))}</p>
+              {isAdmin && <p className="text-xs text-muted-foreground">Comisión: {formatCurrency(salePrice * (form.commissionRate / 100))}</p>}
             </div>
           )}
           <div className="space-y-1.5">
@@ -176,7 +214,8 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
 
 export default function VentasPage() {
   const { sales, getClientById, getVehicleById, getUserById, completeSale, cancelSale } = useStore()
-  const { canEdit } = useAuth()
+  const { canEdit, user } = useAuth()
+  const isAdmin = user?.role === "admin"
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("todos")
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
@@ -236,17 +275,19 @@ export default function VentasPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-border/50">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15">
-              <TrendingUp className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <p className="text-lg font-bold">{formatCurrency(totalCommissions)}</p>
-              <p className="text-xs text-muted-foreground">Comisiones</p>
-            </div>
-          </CardContent>
-        </Card>
+        {isAdmin && (
+          <Card className="border-border/50">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15">
+                <TrendingUp className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-lg font-bold">{formatCurrency(totalCommissions)}</p>
+                <p className="text-xs text-muted-foreground">Comisiones</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <Card className="border-border/50">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-yellow-500/15">
@@ -329,7 +370,7 @@ export default function VentasPage() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Pago</TableHead>
                 <TableHead>Precio</TableHead>
-                <TableHead>Comisión</TableHead>
+                {isAdmin && <TableHead>Comisión</TableHead>}
                 <TableHead>Estado</TableHead>
               </TableRow>
             </TableHeader>
@@ -359,7 +400,7 @@ export default function VentasPage() {
                     </TableCell>
                     <TableCell className="text-sm">{paymentLabels[sale.paymentMethod]}</TableCell>
                     <TableCell className="text-sm font-semibold">{formatCurrency(sale.salePrice)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{sale.commissionRate}% · {formatCurrency(sale.commission)}</TableCell>
+                    {isAdmin && <TableCell className="text-sm text-muted-foreground">{sale.commissionRate}% · {formatCurrency(sale.commission)}</TableCell>}
                     <TableCell>
                       <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium ${cfg.className}`}>
                         {cfg.label}
@@ -400,10 +441,12 @@ export default function VentasPage() {
                     {statusConfig[selectedSale.status].label}
                   </Badge>
                   <Badge variant="outline">{paymentLabels[selectedSale.paymentMethod]}</Badge>
-                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                    <Percent className="h-3 w-3 mr-1" />
-                    Comisión {selectedSale.commissionRate}%
-                  </Badge>
+                  {isAdmin && (
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                      <Percent className="h-3 w-3 mr-1" />
+                      Comisión {selectedSale.commissionRate}%
+                    </Badge>
+                  )}
                 </div>
 
                 {/* Vehicle */}
@@ -447,13 +490,15 @@ export default function VentasPage() {
                 {/* Financial Breakdown */}
                 <div className="rounded-lg bg-muted/50 p-4 space-y-3">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                    <Banknote className="h-3.5 w-3.5" /> Desglose financiero
+                    <Banknote className="h-3.5 w-3.5" /> {isAdmin ? "Desglose financiero" : "Precio"}
                   </p>
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Precio de compra</p>
-                      <p className="text-sm font-medium">{formatCurrency(purchasePrice)}</p>
-                    </div>
+                    {isAdmin && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Precio de compra</p>
+                        <p className="text-sm font-medium">{formatCurrency(purchasePrice)}</p>
+                      </div>
+                    )}
                     <div>
                       <p className="text-xs text-muted-foreground">Precio de venta</p>
                       <p className="text-xl font-bold">{formatCurrency(selectedSale.salePrice)}</p>
@@ -464,18 +509,22 @@ export default function VentasPage() {
                         <p className="text-sm font-medium text-red-500">-{formatCurrency(selectedSale.discount)}</p>
                       </div>
                     )}
-                    <div>
-                      <p className="text-xs text-muted-foreground">Comisión ({selectedSale.commissionRate}%)</p>
-                      <p className="text-sm font-medium text-green-600">{formatCurrency(selectedSale.commission)}</p>
-                    </div>
-                    <div className="col-span-2 pt-2 border-t border-border/50">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-muted-foreground">Margen neto</p>
-                        <p className={`text-lg font-bold ${margin >= 0 ? "text-green-600" : "text-red-500"}`}>
-                          {formatCurrency(margin)} <span className="text-xs font-normal text-muted-foreground">({marginPct}%)</span>
-                        </p>
-                      </div>
-                    </div>
+                    {isAdmin && (
+                      <>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Comisión ({selectedSale.commissionRate}%)</p>
+                          <p className="text-sm font-medium text-green-600">{formatCurrency(selectedSale.commission)}</p>
+                        </div>
+                        <div className="col-span-2 pt-2 border-t border-border/50">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-muted-foreground">Margen neto</p>
+                            <p className={`text-lg font-bold ${margin >= 0 ? "text-green-600" : "text-red-500"}`}>
+                              {formatCurrency(margin)} <span className="text-xs font-normal text-muted-foreground">({marginPct}%)</span>
+                            </p>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
