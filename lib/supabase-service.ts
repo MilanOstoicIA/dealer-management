@@ -1,7 +1,7 @@
 import { supabase } from "./supabase"
 import type {
   Vehicle, Client, Sale, Appointment, Expense, User, ForumPost,
-  VehicleServiceRecord, ClientVehicleInfo, WorkItem,
+  VehicleServiceRecord, ClientVehicleInfo, WorkItem, Tracking,
 } from "@/types"
 
 // ─── Helpers: snake_case <-> camelCase mappers ─────────────────────────────
@@ -238,6 +238,7 @@ export interface SupabaseState {
   forumPosts: ForumPost[]
   serviceRecords: VehicleServiceRecord[]
   clientVehicleInfo: ClientVehicleInfo[]
+  trackings: Tracking[]
 }
 
 export async function fetchAllData(): Promise<SupabaseState> {
@@ -251,6 +252,7 @@ export async function fetchAllData(): Promise<SupabaseState> {
     { data: forumPostsData },
     { data: serviceRecordsData },
     { data: clientVehicleInfoData },
+    { data: trackingsData },
   ] = await Promise.all([
     supabase.from("users").select("*"),
     supabase.from("vehicles").select("*"),
@@ -261,6 +263,7 @@ export async function fetchAllData(): Promise<SupabaseState> {
     supabase.from("forum_posts").select("*"),
     supabase.from("service_records").select("*"),
     supabase.from("client_vehicle_info").select("*"),
+    supabase.from("trackings").select("*"),
   ])
 
   return {
@@ -273,6 +276,7 @@ export async function fetchAllData(): Promise<SupabaseState> {
     forumPosts: (forumPostsData || []).map(forumPostFromRow),
     serviceRecords: (serviceRecordsData || []).map(serviceRecordFromRow),
     clientVehicleInfo: (clientVehicleInfoData || []).map(clientVehicleInfoFromRow),
+    trackings: (trackingsData || []).map(trackingFromRow),
   }
 }
 
@@ -416,6 +420,64 @@ export async function dbUpdateForumPost(id: string, updates: Partial<ForumPost>)
   if (updates.notes !== undefined) row.notes = updates.notes
   if (updates.images !== undefined) row.images = updates.images
   const { error } = await supabase.from("forum_posts").update(row).eq("id", id)
+  if (error) throw error
+}
+
+// Trackings
+function trackingFromRow(r: Record<string, unknown>): Tracking {
+  return {
+    id: r.id as string,
+    category: r.category as Tracking["category"],
+    title: r.title as string,
+    description: (r.description as string) || undefined,
+    status: r.status as Tracking["status"],
+    priority: r.priority as Tracking["priority"],
+    vehicleId: (r.vehicle_id as string) || undefined,
+    clientId: (r.client_id as string) || undefined,
+    saleId: (r.sale_id as string) || undefined,
+    assignedTo: (r.assigned_to as string) || undefined,
+    dueDate: (r.due_date as string) || undefined,
+    completedAt: (r.completed_at as string) || undefined,
+    notes: (r.notes as string) || undefined,
+    createdAt: r.created_at as string,
+    updatedAt: r.updated_at as string,
+  }
+}
+
+export async function dbAddTracking(t: Tracking) {
+  const row: Record<string, unknown> = {
+    id: t.id, category: t.category, title: t.title,
+    description: t.description || null, status: t.status, priority: t.priority,
+    vehicle_id: t.vehicleId || null, client_id: t.clientId || null,
+    sale_id: t.saleId || null, assigned_to: t.assignedTo || null,
+    due_date: t.dueDate || null, completed_at: t.completedAt || null,
+    notes: t.notes || null, created_at: t.createdAt, updated_at: t.updatedAt,
+  }
+  const { error } = await supabase.from("trackings").insert(row)
+  if (error) throw error
+}
+
+export async function dbUpdateTracking(id: string, updates: Partial<Tracking>) {
+  const row: Record<string, unknown> = {}
+  if (updates.category !== undefined) row.category = updates.category
+  if (updates.title !== undefined) row.title = updates.title
+  if (updates.description !== undefined) row.description = updates.description
+  if (updates.status !== undefined) row.status = updates.status
+  if (updates.priority !== undefined) row.priority = updates.priority
+  if (updates.vehicleId !== undefined) row.vehicle_id = updates.vehicleId
+  if (updates.clientId !== undefined) row.client_id = updates.clientId
+  if (updates.saleId !== undefined) row.sale_id = updates.saleId
+  if (updates.assignedTo !== undefined) row.assigned_to = updates.assignedTo
+  if (updates.dueDate !== undefined) row.due_date = updates.dueDate
+  if (updates.completedAt !== undefined) row.completed_at = updates.completedAt
+  if (updates.notes !== undefined) row.notes = updates.notes
+  if (updates.updatedAt !== undefined) row.updated_at = updates.updatedAt
+  const { error } = await supabase.from("trackings").update(row).eq("id", id)
+  if (error) throw error
+}
+
+export async function dbDeleteTracking(id: string) {
+  const { error } = await supabase.from("trackings").delete().eq("id", id)
   if (error) throw error
 }
 

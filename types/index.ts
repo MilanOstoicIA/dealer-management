@@ -199,6 +199,39 @@ export interface SaleWithRelations extends Sale {
   seller: User;
 }
 
+// ─── Seguimientos (tracking) ─────────────────────────────────────────────────
+
+export type TrackingCategory =
+  | "pedido_piezas"
+  | "documentacion"
+  | "matriculacion"
+  | "transferencia"
+  | "itv"
+  | "seguro"
+  | "financiacion"
+  | "otro";
+
+export type TrackingStatus = "pendiente" | "en_progreso" | "completado" | "cancelado";
+export type TrackingPriority = "baja" | "media" | "alta" | "urgente";
+
+export interface Tracking {
+  id: string;
+  category: TrackingCategory;
+  title: string;
+  description?: string;
+  status: TrackingStatus;
+  priority: TrackingPriority;
+  vehicleId?: string;
+  clientId?: string;
+  saleId?: string;
+  assignedTo?: string;       // userId
+  dueDate?: string;          // ISO date
+  completedAt?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Dashboard stats ──────────────────────────────────────────────────────────
 
 export interface DashboardStats {

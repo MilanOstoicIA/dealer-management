@@ -3,7 +3,7 @@
 import { createContext, useContext, useReducer, useEffect, useState, useCallback, type ReactNode } from "react"
 import type {
   Vehicle, Client, Sale, Appointment, Expense, User, ForumPost,
-  VehicleServiceRecord, ClientVehicleInfo,
+  VehicleServiceRecord, ClientVehicleInfo, Tracking,
 } from "@/types"
 import {
   fetchAllData,
@@ -15,6 +15,7 @@ import {
   dbAddUser, dbUpdateUser,
   dbAddForumPost, dbUpdateForumPost,
   dbAddServiceRecord, dbSetClientVehicleInfo,
+  dbAddTracking, dbUpdateTracking, dbDeleteTracking,
 } from "@/lib/supabase-service"
 
 // ─── ID generator ────────────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ interface StoreState {
   forumPosts: ForumPost[]
   serviceRecords: VehicleServiceRecord[]
   clientVehicleInfo: ClientVehicleInfo[]
+  trackings: Tracking[]
 }
 
 const emptyState: StoreState = {
@@ -47,6 +49,7 @@ const emptyState: StoreState = {
   forumPosts: [],
   serviceRecords: [],
   clientVehicleInfo: [],
+  trackings: [],
 }
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
@@ -74,6 +77,9 @@ type Action =
   | { type: "UPDATE_FORUM_POST"; id: string; updates: Partial<ForumPost> }
   | { type: "ADD_SERVICE_RECORD"; payload: VehicleServiceRecord }
   | { type: "SET_CLIENT_VEHICLE_INFO"; payload: ClientVehicleInfo }
+  | { type: "ADD_TRACKING"; payload: Tracking }
+  | { type: "UPDATE_TRACKING"; id: string; updates: Partial<Tracking> }
+  | { type: "DELETE_TRACKING"; id: string }
 
 // ─── Reducer ─────────────────────────────────────────────────────────────────
 
@@ -199,6 +205,14 @@ function reducer(state: StoreState, action: Action): StoreState {
       return { ...state, clientVehicleInfo: [...state.clientVehicleInfo, action.payload] }
     }
 
+    // ── Trackings ──
+    case "ADD_TRACKING":
+      return { ...state, trackings: [...state.trackings, action.payload] }
+    case "UPDATE_TRACKING":
+      return { ...state, trackings: state.trackings.map((t) => t.id === action.id ? { ...t, ...action.updates } : t) }
+    case "DELETE_TRACKING":
+      return { ...state, trackings: state.trackings.filter((t) => t.id !== action.id) }
+
     default:
       return state
   }
@@ -226,6 +240,9 @@ interface StoreContextType extends StoreState {
   updateUser: (id: string, updates: Partial<User>) => void
   addForumPost: (p: Omit<ForumPost, "id" | "createdAt">) => void
   updateForumPost: (id: string, updates: Partial<ForumPost>) => void
+  addTracking: (t: Omit<Tracking, "id" | "createdAt" | "updatedAt">) => void
+  updateTracking: (id: string, updates: Partial<Tracking>) => void
+  deleteTracking: (id: string) => void
   getUserById: (id: string) => User | undefined
   getVehicleById: (id: string) => Vehicle | undefined
   getClientById: (id: string) => Client | undefined
@@ -436,6 +453,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dbUpdateForumPost(id, updates).catch((err) => console.error("DB updateForumPost error:", err))
   }, [])
 
+  // ── Tracking actions ──
+  const addTracking = useCallback((t: Omit<Tracking, "id" | "createdAt" | "updatedAt">) => {
+    const now = new Date().toISOString()
+    const newTracking = { ...t, id: generateId(), createdAt: now, updatedAt: now } as Tracking
+    dispatch({ type: "ADD_TRACKING", payload: newTracking })
+    dbAddTracking(newTracking).catch((err) => console.error("DB addTracking error:", err))
+  }, [])
+
+  const updateTracking = useCallback((id: string, updates: Partial<Tracking>) => {
+    const updatedFields = { ...updates, updatedAt: new Date().toISOString() }
+    dispatch({ type: "UPDATE_TRACKING", id, updates: updatedFields })
+    dbUpdateTracking(id, updatedFields).catch((err) => console.error("DB updateTracking error:", err))
+  }, [])
+
+  const deleteTracking = useCallback((id: string) => {
+    dispatch({ type: "DELETE_TRACKING", id })
+    dbDeleteTracking(id).catch((err) => console.error("DB deleteTracking error:", err))
+  }, [])
+
   // ── Data management ──
   const loadDemoData = useCallback(() => {
     // Reload from DB (data is already seeded)
@@ -455,6 +491,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     addExpense, deleteExpense,
     addUser, updateUser,
     addForumPost, updateForumPost,
+    addTracking, updateTracking, deleteTracking,
     getUserById, getVehicleById, getClientById,
     getServiceRecordsByVehicle, getClientVehicleInfoFn, getDashboardStats,
     loadDemoData, clearAllData, refreshFromDb,

@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Settings,
   Menu,
+  ClipboardCheck,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -31,6 +32,7 @@ const allNavItems = [
   { href: "/dashboard/clientes", labelKey: "nav.clients", icon: Users, section: "principal" },
   { href: "/dashboard/citas", labelKey: "nav.appointments", icon: CalendarDays, section: "principal" },
   { href: "/dashboard/ventas", labelKey: "nav.sales", icon: ShoppingCart, section: "principal" },
+  { href: "/dashboard/seguimientos", labelKey: "nav.tracking", icon: ClipboardCheck, section: "principal" },
   { href: "/dashboard/contabilidad", labelKey: "nav.accounting", icon: BarChart3, section: "admin" },
   { href: "/dashboard/facturacion", labelKey: "nav.invoicing", icon: Receipt, section: "admin" },
   { href: "/dashboard/equipo", labelKey: "nav.team", icon: UserCog, section: "admin" },
