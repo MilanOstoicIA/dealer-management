@@ -53,6 +53,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/equipo",
     "/dashboard/seguimientos",
     "/dashboard/proveedores",
+    "/dashboard/publicacion",
     "/dashboard/foro",
     "/dashboard/configuracion",
   ],

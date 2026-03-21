@@ -21,6 +21,7 @@ const translations: Record<Locale, Record<string, string>> = {
     "nav.settings": "Configuración",
     "nav.tracking": "Seguimientos",
     "nav.suppliers": "Proveedores",
+    "nav.publication": "Publicación",
     "nav.logout": "Cerrar sesión",
     // Roles
     "role.admin": "Administrador",
@@ -182,6 +183,7 @@ const translations: Record<Locale, Record<string, string>> = {
     "nav.settings": "Settings",
     "nav.tracking": "Tracking",
     "nav.suppliers": "Suppliers",
+    "nav.publication": "Publication",
     "nav.logout": "Log out",
     // Roles
     "role.admin": "Administrator",
