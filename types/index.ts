@@ -228,8 +228,49 @@ export interface Tracking {
   dueDate?: string;          // ISO date
   completedAt?: string;
   notes?: string;
+  supplierId?: string;
+  trackingNumber?: string;
+  estimatedDelivery?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── Proveedores (suppliers) ─────────────────────────────────────────────────
+
+export type SupplierCategory =
+  | "recambios"
+  | "gestoria"
+  | "trafico"
+  | "seguro"
+  | "financiera"
+  | "transporte"
+  | "otro";
+
+export interface Supplier {
+  id: string;
+  name: string;
+  category: SupplierCategory;
+  email?: string;
+  phone?: string;
+  whatsapp?: string;
+  website?: string;
+  contactPerson?: string;
+  address?: string;
+  notes?: string;
+  active: boolean;
+  createdAt: string;
+}
+
+// ─── Historial de seguimientos ──────────────────────────────────────────────
+
+export interface TrackingHistoryEntry {
+  id: string;
+  trackingId: string;
+  oldStatus?: string;
+  newStatus: string;
+  changedBy?: string;
+  note?: string;
+  createdAt: string;
 }
 
 // ─── Dashboard stats ──────────────────────────────────────────────────────────

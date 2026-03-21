@@ -4,6 +4,7 @@ import { createContext, useContext, useReducer, useEffect, useState, useCallback
 import type {
   Vehicle, Client, Sale, Appointment, Expense, User, ForumPost,
   VehicleServiceRecord, ClientVehicleInfo, Tracking,
+  Supplier, TrackingHistoryEntry,
 } from "@/types"
 import {
   fetchAllData,
@@ -16,6 +17,8 @@ import {
   dbAddForumPost, dbUpdateForumPost,
   dbAddServiceRecord, dbSetClientVehicleInfo,
   dbAddTracking, dbUpdateTracking, dbDeleteTracking,
+  dbAddSupplier, dbUpdateSupplier, dbDeleteSupplier,
+  dbAddTrackingHistory, dbFetchTrackingHistory,
 } from "@/lib/supabase-service"
 
 // ─── ID generator ────────────────────────────────────────────────────────────
@@ -37,6 +40,7 @@ interface StoreState {
   serviceRecords: VehicleServiceRecord[]
   clientVehicleInfo: ClientVehicleInfo[]
   trackings: Tracking[]
+  suppliers: Supplier[]
 }
 
 const emptyState: StoreState = {
@@ -50,6 +54,7 @@ const emptyState: StoreState = {
   serviceRecords: [],
   clientVehicleInfo: [],
   trackings: [],
+  suppliers: [],
 }
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
@@ -80,6 +85,9 @@ type Action =
   | { type: "ADD_TRACKING"; payload: Tracking }
   | { type: "UPDATE_TRACKING"; id: string; updates: Partial<Tracking> }
   | { type: "DELETE_TRACKING"; id: string }
+  | { type: "ADD_SUPPLIER"; payload: Supplier }
+  | { type: "UPDATE_SUPPLIER"; id: string; updates: Partial<Supplier> }
+  | { type: "DELETE_SUPPLIER"; id: string }
 
 // ─── Reducer ─────────────────────────────────────────────────────────────────
 
@@ -213,6 +221,14 @@ function reducer(state: StoreState, action: Action): StoreState {
     case "DELETE_TRACKING":
       return { ...state, trackings: state.trackings.filter((t) => t.id !== action.id) }
 
+    // ── Suppliers ──
+    case "ADD_SUPPLIER":
+      return { ...state, suppliers: [...state.suppliers, action.payload] }
+    case "UPDATE_SUPPLIER":
+      return { ...state, suppliers: state.suppliers.map((s) => s.id === action.id ? { ...s, ...action.updates } : s) }
+    case "DELETE_SUPPLIER":
+      return { ...state, suppliers: state.suppliers.filter((s) => s.id !== action.id) }
+
     default:
       return state
   }
@@ -243,6 +259,11 @@ interface StoreContextType extends StoreState {
   addTracking: (t: Omit<Tracking, "id" | "createdAt" | "updatedAt">) => void
   updateTracking: (id: string, updates: Partial<Tracking>) => void
   deleteTracking: (id: string) => void
+  addSupplier: (s: Omit<Supplier, "id" | "createdAt">) => void
+  updateSupplier: (id: string, updates: Partial<Supplier>) => void
+  deleteSupplier: (id: string) => void
+  getSupplierById: (id: string) => Supplier | undefined
+  fetchTrackingHistory: (trackingId: string) => Promise<TrackingHistoryEntry[]>
   getUserById: (id: string) => User | undefined
   getVehicleById: (id: string) => Vehicle | undefined
   getClientById: (id: string) => Client | undefined
@@ -463,13 +484,55 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const updateTracking = useCallback((id: string, updates: Partial<Tracking>) => {
     const updatedFields = { ...updates, updatedAt: new Date().toISOString() }
+    // Record history when status changes
+    if (updates.status) {
+      const oldTracking = state.trackings.find((t) => t.id === id)
+      if (oldTracking && oldTracking.status !== updates.status) {
+        const historyEntry: TrackingHistoryEntry = {
+          id: generateId(),
+          trackingId: id,
+          oldStatus: oldTracking.status,
+          newStatus: updates.status,
+          createdAt: new Date().toISOString(),
+        }
+        dbAddTrackingHistory(historyEntry).catch((err) => console.error("DB addTrackingHistory error:", err))
+      }
+    }
     dispatch({ type: "UPDATE_TRACKING", id, updates: updatedFields })
     dbUpdateTracking(id, updatedFields).catch((err) => console.error("DB updateTracking error:", err))
-  }, [])
+  }, [state.trackings])
 
   const deleteTracking = useCallback((id: string) => {
     dispatch({ type: "DELETE_TRACKING", id })
     dbDeleteTracking(id).catch((err) => console.error("DB deleteTracking error:", err))
+  }, [])
+
+  // ── Supplier actions ──
+  const addSupplier = useCallback((s: Omit<Supplier, "id" | "createdAt">) => {
+    const newSupplier = { ...s, id: generateId(), createdAt: new Date().toISOString() } as Supplier
+    dispatch({ type: "ADD_SUPPLIER", payload: newSupplier })
+    dbAddSupplier(newSupplier).catch((err) => console.error("DB addSupplier error:", err))
+  }, [])
+
+  const updateSupplier = useCallback((id: string, updates: Partial<Supplier>) => {
+    dispatch({ type: "UPDATE_SUPPLIER", id, updates })
+    dbUpdateSupplier(id, updates).catch((err) => console.error("DB updateSupplier error:", err))
+  }, [])
+
+  const deleteSupplier = useCallback((id: string) => {
+    dispatch({ type: "DELETE_SUPPLIER", id })
+    dbDeleteSupplier(id).catch((err) => console.error("DB deleteSupplier error:", err))
+  }, [])
+
+  const getSupplierById = useCallback((id: string) => state.suppliers.find((s) => s.id === id), [state.suppliers])
+
+  const fetchTrackingHistoryFn = useCallback(async (trackingId: string) => {
+    try {
+      return await dbFetchTrackingHistory(trackingId)
+    } catch (err) {
+      console.error("DB fetchTrackingHistory error:", err)
+      return []
+    }
   }, [])
 
   // ── Data management ──
@@ -492,6 +555,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     addUser, updateUser,
     addForumPost, updateForumPost,
     addTracking, updateTracking, deleteTracking,
+    addSupplier, updateSupplier, deleteSupplier, getSupplierById,
+    fetchTrackingHistory: fetchTrackingHistoryFn,
     getUserById, getVehicleById, getClientById,
     getServiceRecordsByVehicle, getClientVehicleInfoFn, getDashboardStats,
     loadDemoData, clearAllData, refreshFromDb,

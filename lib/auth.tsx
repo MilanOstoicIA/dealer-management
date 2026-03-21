@@ -7,7 +7,7 @@ import { useStore } from "@/lib/store"
 import { dbVerifyPassword } from "@/lib/supabase-service"
 
 // Sections that can be edited
-export type EditableSection = "vehiculos" | "clientes" | "citas" | "ventas" | "equipo" | "seguimientos"
+export type EditableSection = "vehiculos" | "clientes" | "citas" | "ventas" | "equipo" | "seguimientos" | "proveedores"
 
 // Which roles can create/edit/delete in each section
 const EDIT_PERMISSIONS: Record<EditableSection, UserRole[]> = {
@@ -17,6 +17,7 @@ const EDIT_PERMISSIONS: Record<EditableSection, UserRole[]> = {
   ventas: ["admin", "vendedor"],
   equipo: ["admin"],
   seguimientos: ["admin", "vendedor", "mecanico", "recepcionista"],
+  proveedores: ["admin", "vendedor"],
 }
 
 interface AuthContextType {
@@ -51,6 +52,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/facturacion",
     "/dashboard/equipo",
     "/dashboard/seguimientos",
+    "/dashboard/proveedores",
     "/dashboard/foro",
     "/dashboard/configuracion",
   ],
@@ -61,6 +63,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/citas",
     "/dashboard/ventas",
     "/dashboard/seguimientos",
+    "/dashboard/proveedores",
     "/dashboard/foro",
   ],
   mecanico: [
@@ -69,6 +72,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/clientes",
     "/dashboard/citas",
     "/dashboard/seguimientos",
+    "/dashboard/proveedores",
   ],
   recepcionista: [
     "/dashboard",
@@ -76,6 +80,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/citas",
     "/dashboard/vehiculos",
     "/dashboard/seguimientos",
+    "/dashboard/proveedores",
     "/dashboard/foro",
   ],
   viewer: [
@@ -88,6 +93,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/facturacion",
     "/dashboard/equipo",
     "/dashboard/seguimientos",
+    "/dashboard/proveedores",
     "/dashboard/foro",
   ],
 }

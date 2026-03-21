@@ -17,6 +17,9 @@ import {
   XCircle,
   AlertTriangle,
   Trash2,
+  Mail,
+  Phone,
+  MessageCircle,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -39,7 +42,8 @@ import {
 } from "@/components/ui/select"
 import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/auth"
-import type { TrackingCategory, TrackingStatus, TrackingPriority } from "@/types"
+import { getMailtoLink, getWhatsAppLink, getTelLink } from "@/lib/communication-templates"
+import type { TrackingCategory, TrackingStatus, TrackingPriority, TrackingHistoryEntry, SupplierCategory } from "@/types"
 
 const categoryConfig: Record<TrackingCategory, { label: string; icon: React.ReactNode; color: string }> = {
   pedido_piezas: { label: "Pedido de piezas", icon: <Package className="h-4 w-4" />, color: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
@@ -66,8 +70,19 @@ const priorityConfig: Record<TrackingPriority, { label: string; color: string }>
   urgente: { label: "Urgente", color: "bg-red-500/15 text-red-600 border-red-500/20" },
 }
 
+const categorySupplierMap: Record<TrackingCategory, SupplierCategory[]> = {
+  pedido_piezas: ["recambios", "transporte"],
+  documentacion: ["gestoria"],
+  matriculacion: ["gestoria", "trafico"],
+  transferencia: ["gestoria", "trafico"],
+  itv: ["otro"],
+  seguro: ["seguro"],
+  financiacion: ["financiera"],
+  otro: [],
+}
+
 export default function SeguimientosPage() {
-  const { trackings, vehicles, clients, sales, users, addTracking, updateTracking, deleteTracking, getVehicleById, getClientById, getUserById } = useStore()
+  const { trackings, vehicles, clients, sales, users, suppliers, addTracking, updateTracking, deleteTracking, getVehicleById, getClientById, getUserById, getSupplierById, fetchTrackingHistory } = useStore()
   const { user, canEdit, isViewer } = useAuth()
   const canEditSection = canEdit("seguimientos")
 
@@ -89,7 +104,12 @@ export default function SeguimientosPage() {
   const [formAssignedTo, setFormAssignedTo] = useState("")
   const [formDueDate, setFormDueDate] = useState("")
   const [formNotes, setFormNotes] = useState("")
+  const [formSupplierId, setFormSupplierId] = useState("")
+  const [formTrackingNumber, setFormTrackingNumber] = useState("")
+  const [formEstimatedDelivery, setFormEstimatedDelivery] = useState("")
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [historyEntries, setHistoryEntries] = useState<TrackingHistoryEntry[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   // Filter and sort
   const filtered = trackings
@@ -136,6 +156,9 @@ export default function SeguimientosPage() {
     setFormAssignedTo("")
     setFormDueDate("")
     setFormNotes("")
+    setFormSupplierId("")
+    setFormTrackingNumber("")
+    setFormEstimatedDelivery("")
     setEditingId(null)
   }
 
@@ -158,6 +181,9 @@ export default function SeguimientosPage() {
     setFormAssignedTo(t.assignedTo || "")
     setFormDueDate(t.dueDate || "")
     setFormNotes(t.notes || "")
+    setFormSupplierId(t.supplierId || "")
+    setFormTrackingNumber(t.trackingNumber || "")
+    setFormEstimatedDelivery(t.estimatedDelivery || "")
     setFormOpen(true)
   }
 
@@ -175,6 +201,9 @@ export default function SeguimientosPage() {
       assignedTo: formAssignedTo || undefined,
       dueDate: formDueDate || undefined,
       notes: formNotes.trim() || undefined,
+      supplierId: formSupplierId || undefined,
+      trackingNumber: formTrackingNumber.trim() || undefined,
+      estimatedDelivery: formEstimatedDelivery || undefined,
     }
     if (editingId) {
       updateTracking(editingId, data)
@@ -309,7 +338,15 @@ export default function SeguimientosPage() {
             <Card
               key={tracking.id}
               className={`border-border/50 cursor-pointer hover:bg-muted/50 transition-colors ${isOverdue ? "border-red-500/40" : ""}`}
-              onClick={() => { setSelectedTracking(tracking.id); setDetailOpen(true) }}
+              onClick={() => {
+                setSelectedTracking(tracking.id)
+                setDetailOpen(true)
+                setLoadingHistory(true)
+                fetchTrackingHistory(tracking.id).then(entries => {
+                  setHistoryEntries(entries)
+                  setLoadingHistory(false)
+                })
+              }}
             >
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
@@ -324,6 +361,10 @@ export default function SeguimientosPage() {
                         <p className="text-sm font-semibold truncate">{tracking.title}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {catCfg.label}
+                          {tracking.supplierId && (() => {
+                            const sup = getSupplierById(tracking.supplierId)
+                            return sup ? <> &middot; {sup.name}</> : null
+                          })()}
                           {vehicle && <> &middot; {vehicle.brand} {vehicle.model}</>}
                           {client && <> &middot; {client.name}</>}
                         </p>
@@ -407,6 +448,35 @@ export default function SeguimientosPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
+                <Label>Proveedor</Label>
+                <Select value={formSupplierId || "none"} onValueChange={(v) => setFormSupplierId(v === "none" ? "" : v ?? "")}>
+                  <SelectTrigger>
+                    <SelectValue>
+                      {formSupplierId ? suppliers.find(s => s.id === formSupplierId)?.name || "Ninguno" : "Ninguno"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Ninguno</SelectItem>
+                    {suppliers
+                      .filter(s => s.active)
+                      .filter(s => {
+                        const mapped = categorySupplierMap[formCategory]
+                        return mapped.length === 0 || mapped.includes(s.category)
+                      })
+                      .map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>N° seguimiento</Label>
+                <Input value={formTrackingNumber} onChange={(e) => setFormTrackingNumber(e.target.value)} placeholder="Ej: ES12345678" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
                 <Label>Veh&iacute;culo</Label>
                 <Select value={formVehicleId || "none"} onValueChange={(v) => setFormVehicleId(v === "none" ? "" : v ?? "")}>
                   <SelectTrigger><SelectValue>{formVehicleId ? (() => { const v = vehicles.find(x => x.id === formVehicleId); return v ? `${v.brand} ${v.model}` : "Ninguno" })() : "Ninguno"}</SelectValue></SelectTrigger>
@@ -448,6 +518,13 @@ export default function SeguimientosPage() {
               <div className="space-y-1.5">
                 <Label>Fecha l&iacute;mite</Label>
                 <Input type="date" value={formDueDate} onChange={(e) => setFormDueDate(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Entrega estimada</Label>
+                <Input type="date" value={formEstimatedDelivery} onChange={(e) => setFormEstimatedDelivery(e.target.value)} />
               </div>
             </div>
 
@@ -549,12 +626,93 @@ export default function SeguimientosPage() {
                     )}
                   </div>
 
+                  {/* Supplier info */}
+                  {detail.supplierId && (() => {
+                    const sup = getSupplierById(detail.supplierId)
+                    if (!sup) return null
+                    return (
+                      <div className="rounded-lg bg-muted/50 p-3">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Proveedor</p>
+                        <p className="text-sm font-semibold">{sup.name}</p>
+                        {sup.contactPerson && <p className="text-xs text-muted-foreground">{sup.contactPerson}</p>}
+                        <div className="flex gap-2 mt-2">
+                          {sup.email && (
+                            <a href={getMailtoLink(sup.email, { tracking: detail, supplier: sup, vehicle: detail.vehicleId ? getVehicleById(detail.vehicleId) : undefined, client: detail.clientId ? getClientById(detail.clientId) : undefined })} className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted transition-colors">
+                              <Mail className="h-3 w-3" /> Email
+                            </a>
+                          )}
+                          {(sup.phone || sup.whatsapp) && (
+                            <a href={getTelLink(sup.phone || sup.whatsapp || "")} className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted transition-colors">
+                              <Phone className="h-3 w-3" /> Llamar
+                            </a>
+                          )}
+                          {sup.whatsapp && (
+                            <a href={getWhatsAppLink(sup.whatsapp, { tracking: detail, supplier: sup, vehicle: detail.vehicleId ? getVehicleById(detail.vehicleId) : undefined, client: detail.clientId ? getClientById(detail.clientId) : undefined })} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted transition-colors text-green-600">
+                              <MessageCircle className="h-3 w-3" /> WhatsApp
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Tracking number & estimated delivery */}
+                  {(detail.trackingNumber || detail.estimatedDelivery) && (
+                    <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/50 p-3">
+                      {detail.trackingNumber && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">N° seguimiento</p>
+                          <p className="text-sm font-medium font-mono">{detail.trackingNumber}</p>
+                        </div>
+                      )}
+                      {detail.estimatedDelivery && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Entrega estimada</p>
+                          <p className="text-sm font-medium">{new Date(detail.estimatedDelivery).toLocaleDateString("es-ES")}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {detail.notes && (
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1">Notas</p>
                       <p className="text-sm whitespace-pre-wrap">{detail.notes}</p>
                     </div>
                   )}
+
+                  {/* Timeline */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Historial</p>
+                    {loadingHistory ? (
+                      <p className="text-xs text-muted-foreground">Cargando...</p>
+                    ) : historyEntries.length > 0 ? (
+                      <div className="space-y-2">
+                        {historyEntries.map((entry) => {
+                          const newSts = statusConfig[entry.newStatus as TrackingStatus]
+                          return (
+                            <div key={entry.id} className="flex items-start gap-2 text-xs">
+                              <div className="mt-0.5">{newSts?.icon || <CircleDot className="h-3.5 w-3.5" />}</div>
+                              <div>
+                                <span className="font-medium">{newSts?.label || entry.newStatus}</span>
+                                {entry.oldStatus && (
+                                  <span className="text-muted-foreground"> (antes: {statusConfig[entry.oldStatus as TrackingStatus]?.label || entry.oldStatus})</span>
+                                )}
+                                {entry.changedBy && (() => {
+                                  const u = getUserById(entry.changedBy)
+                                  return u ? <span className="text-muted-foreground"> &middot; {u.name}</span> : null
+                                })()}
+                                <span className="text-muted-foreground"> &middot; {new Date(entry.createdAt).toLocaleDateString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                                {entry.note && <p className="text-muted-foreground mt-0.5">{entry.note}</p>}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Sin cambios de estado registrados</p>
+                    )}
+                  </div>
 
                   {/* Actions */}
                   {canEditSection && detail.status !== "completado" && detail.status !== "cancelado" && (

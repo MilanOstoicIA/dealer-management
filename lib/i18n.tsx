@@ -20,6 +20,7 @@ const translations: Record<Locale, Record<string, string>> = {
     "nav.forum": "Foro Compra-Venta",
     "nav.settings": "Configuración",
     "nav.tracking": "Seguimientos",
+    "nav.suppliers": "Proveedores",
     "nav.logout": "Cerrar sesión",
     // Roles
     "role.admin": "Administrador",
@@ -180,6 +181,7 @@ const translations: Record<Locale, Record<string, string>> = {
     "nav.forum": "Buy-Sell Forum",
     "nav.settings": "Settings",
     "nav.tracking": "Tracking",
+    "nav.suppliers": "Suppliers",
     "nav.logout": "Log out",
     // Roles
     "role.admin": "Administrator",

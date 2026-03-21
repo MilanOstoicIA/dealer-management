@@ -2,6 +2,7 @@ import { supabase } from "./supabase"
 import type {
   Vehicle, Client, Sale, Appointment, Expense, User, ForumPost,
   VehicleServiceRecord, ClientVehicleInfo, WorkItem, Tracking,
+  Supplier, TrackingHistoryEntry,
 } from "@/types"
 
 // ─── Helpers: snake_case <-> camelCase mappers ─────────────────────────────
@@ -226,6 +227,35 @@ function clientVehicleInfoFromRow(r: Record<string, unknown>): ClientVehicleInfo
   }
 }
 
+function supplierFromRow(r: Record<string, unknown>): Supplier {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    category: r.category as Supplier["category"],
+    email: (r.email as string) || undefined,
+    phone: (r.phone as string) || undefined,
+    whatsapp: (r.whatsapp as string) || undefined,
+    website: (r.website as string) || undefined,
+    contactPerson: (r.contact_person as string) || undefined,
+    address: (r.address as string) || undefined,
+    notes: (r.notes as string) || undefined,
+    active: r.active as boolean,
+    createdAt: r.created_at as string,
+  }
+}
+
+function trackingHistoryFromRow(r: Record<string, unknown>): TrackingHistoryEntry {
+  return {
+    id: r.id as string,
+    trackingId: r.tracking_id as string,
+    oldStatus: (r.old_status as string) || undefined,
+    newStatus: r.new_status as string,
+    changedBy: (r.changed_by as string) || undefined,
+    note: (r.note as string) || undefined,
+    createdAt: r.created_at as string,
+  }
+}
+
 // ─── Fetch all data ────────────────────────────────────────────────────────
 
 export interface SupabaseState {
@@ -239,6 +269,7 @@ export interface SupabaseState {
   serviceRecords: VehicleServiceRecord[]
   clientVehicleInfo: ClientVehicleInfo[]
   trackings: Tracking[]
+  suppliers: Supplier[]
 }
 
 export async function fetchAllData(): Promise<SupabaseState> {
@@ -253,6 +284,7 @@ export async function fetchAllData(): Promise<SupabaseState> {
     { data: serviceRecordsData },
     { data: clientVehicleInfoData },
     { data: trackingsData },
+    { data: suppliersData },
   ] = await Promise.all([
     supabase.from("users").select("*"),
     supabase.from("vehicles").select("*"),
@@ -264,6 +296,7 @@ export async function fetchAllData(): Promise<SupabaseState> {
     supabase.from("service_records").select("*"),
     supabase.from("client_vehicle_info").select("*"),
     supabase.from("trackings").select("*"),
+    supabase.from("suppliers").select("*"),
   ])
 
   return {
@@ -277,6 +310,7 @@ export async function fetchAllData(): Promise<SupabaseState> {
     serviceRecords: (serviceRecordsData || []).map(serviceRecordFromRow),
     clientVehicleInfo: (clientVehicleInfoData || []).map(clientVehicleInfoFromRow),
     trackings: (trackingsData || []).map(trackingFromRow),
+    suppliers: (suppliersData || []).map(supplierFromRow),
   }
 }
 
@@ -439,6 +473,9 @@ function trackingFromRow(r: Record<string, unknown>): Tracking {
     dueDate: (r.due_date as string) || undefined,
     completedAt: (r.completed_at as string) || undefined,
     notes: (r.notes as string) || undefined,
+    supplierId: (r.supplier_id as string) || undefined,
+    trackingNumber: (r.tracking_number as string) || undefined,
+    estimatedDelivery: (r.estimated_delivery as string) || undefined,
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   }
@@ -451,7 +488,9 @@ export async function dbAddTracking(t: Tracking) {
     vehicle_id: t.vehicleId || null, client_id: t.clientId || null,
     sale_id: t.saleId || null, assigned_to: t.assignedTo || null,
     due_date: t.dueDate || null, completed_at: t.completedAt || null,
-    notes: t.notes || null, created_at: t.createdAt, updated_at: t.updatedAt,
+    notes: t.notes || null, supplier_id: t.supplierId || null,
+    tracking_number: t.trackingNumber || null, estimated_delivery: t.estimatedDelivery || null,
+    created_at: t.createdAt, updated_at: t.updatedAt,
   }
   const { error } = await supabase.from("trackings").insert(row)
   if (error) throw error
@@ -471,6 +510,9 @@ export async function dbUpdateTracking(id: string, updates: Partial<Tracking>) {
   if (updates.dueDate !== undefined) row.due_date = updates.dueDate
   if (updates.completedAt !== undefined) row.completed_at = updates.completedAt
   if (updates.notes !== undefined) row.notes = updates.notes
+  if (updates.supplierId !== undefined) row.supplier_id = updates.supplierId
+  if (updates.trackingNumber !== undefined) row.tracking_number = updates.trackingNumber
+  if (updates.estimatedDelivery !== undefined) row.estimated_delivery = updates.estimatedDelivery
   if (updates.updatedAt !== undefined) row.updated_at = updates.updatedAt
   const { error } = await supabase.from("trackings").update(row).eq("id", id)
   if (error) throw error
@@ -479,6 +521,62 @@ export async function dbUpdateTracking(id: string, updates: Partial<Tracking>) {
 export async function dbDeleteTracking(id: string) {
   const { error } = await supabase.from("trackings").delete().eq("id", id)
   if (error) throw error
+}
+
+// Suppliers
+export async function dbAddSupplier(s: Supplier) {
+  const row: Record<string, unknown> = {
+    id: s.id, name: s.name, category: s.category,
+    email: s.email || null, phone: s.phone || null,
+    whatsapp: s.whatsapp || null, website: s.website || null,
+    contact_person: s.contactPerson || null, address: s.address || null,
+    notes: s.notes || null, active: s.active, created_at: s.createdAt,
+  }
+  const { error } = await supabase.from("suppliers").insert(row)
+  if (error) throw error
+}
+
+export async function dbUpdateSupplier(id: string, updates: Partial<Supplier>) {
+  const row: Record<string, unknown> = {}
+  if (updates.name !== undefined) row.name = updates.name
+  if (updates.category !== undefined) row.category = updates.category
+  if (updates.email !== undefined) row.email = updates.email
+  if (updates.phone !== undefined) row.phone = updates.phone
+  if (updates.whatsapp !== undefined) row.whatsapp = updates.whatsapp
+  if (updates.website !== undefined) row.website = updates.website
+  if (updates.contactPerson !== undefined) row.contact_person = updates.contactPerson
+  if (updates.address !== undefined) row.address = updates.address
+  if (updates.notes !== undefined) row.notes = updates.notes
+  if (updates.active !== undefined) row.active = updates.active
+  const { error } = await supabase.from("suppliers").update(row).eq("id", id)
+  if (error) throw error
+}
+
+export async function dbDeleteSupplier(id: string) {
+  const { error } = await supabase.from("suppliers").delete().eq("id", id)
+  if (error) throw error
+}
+
+// Tracking history
+export async function dbAddTrackingHistory(entry: TrackingHistoryEntry) {
+  const row: Record<string, unknown> = {
+    id: entry.id, tracking_id: entry.trackingId,
+    old_status: entry.oldStatus || null, new_status: entry.newStatus,
+    changed_by: entry.changedBy || null, note: entry.note || null,
+    created_at: entry.createdAt,
+  }
+  const { error } = await supabase.from("tracking_history").insert(row)
+  if (error) throw error
+}
+
+export async function dbFetchTrackingHistory(trackingId: string): Promise<TrackingHistoryEntry[]> {
+  const { data, error } = await supabase
+    .from("tracking_history")
+    .select("*")
+    .eq("tracking_id", trackingId)
+    .order("created_at", { ascending: true })
+  if (error) throw error
+  return (data || []).map(trackingHistoryFromRow)
 }
 
 // ─── Auth: verify password ─────────────────────────────────────────────────
