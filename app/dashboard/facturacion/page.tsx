@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { Receipt, FileText, Download, Search, Euro, Scale } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { Receipt, FileText, Download, Search, Euro, Scale, ShieldCheck, ShieldAlert, Hash, Loader2 } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/dialog"
 import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/auth"
-import type { Invoice, InvoiceStatus } from "@/types"
+import type { Invoice, InvoiceStatus, VeriFactuStatus } from "@/types"
+import { validateHashChain, getVeriFactuStatusLabel, type HashChainValidation } from "@/lib/verifactu"
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(amount)
@@ -35,11 +36,18 @@ const statusConfig: Record<InvoiceStatus, { label: string; className: string }> 
   anulada: { label: "Anulada", className: "bg-destructive/15 text-destructive border-destructive/20" },
 }
 
-// ─── PDF Generator (supports REBU and IVA General) ─────────────────────────
+// ─── PDF Generator (supports REBU and IVA General + VeriFactu hash) ─────────
 
 function generateInvoicePDF(invoice: Invoice) {
   const fmt = (n: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(n)
   const isRebu = invoice.taxRegime === "rebu"
+
+  const verifactuHtml = invoice.hash
+    ? `<div class="verifactu">
+        <strong>🔐 VeriFactu</strong> — Hash: <code>${invoice.hash.slice(0, 16)}...</code>
+        ${invoice.previousHash ? `<br>Enlace anterior: <code>${invoice.previousHash.slice(0, 16)}...</code>` : "<br>Factura génesis (primera de la cadena)"}
+       </div>`
+    : ""
 
   const totalsHtml = isRebu
     ? `
@@ -84,6 +92,8 @@ function generateInvoicePDF(invoice: Invoice) {
         .totals .row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; }
         .totals .total { border-top: 2px solid #2563eb; font-size: 18px; font-weight: bold; color: #2563eb; }
         .rebu-notice { margin-top: 20px; padding: 15px; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px; font-size: 12px; color: #6b21a8; line-height: 1.5; }
+        .verifactu { margin-top: 20px; padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; font-size: 11px; color: #166534; line-height: 1.6; }
+        .verifactu code { background: #dcfce7; padding: 1px 4px; border-radius: 3px; font-family: monospace; font-size: 10px; }
         .footer { margin-top: 60px; text-align: center; font-size: 11px; color: #999; border-top: 1px solid #e2e8f0; padding-top: 20px; }
         @media print { body { padding: 20px; } }
       </style>
@@ -109,12 +119,25 @@ function generateInvoicePDF(invoice: Invoice) {
         <tbody><tr><td>${invoice.concept}</td><td style="text-align:right">${fmt(invoice.total)}</td></tr></tbody>
       </table>
       ${totalsHtml}
+      ${verifactuHtml}
       <div class="footer">DealerHub S.L. — Factura generada automáticamente</div>
       <script>window.print()<\/script>
     </body></html>
   `
   const w = window.open("", "_blank")
   if (w) { w.document.write(html); w.document.close() }
+}
+
+// ─── VeriFactu badge component ──────────────────────────────────────────────
+
+function VeriFactuBadge({ status }: { status?: VeriFactuStatus }) {
+  if (!status) return null
+  const cfg = getVeriFactuStatusLabel(status)
+  return (
+    <Badge variant="outline" className={`${cfg.color} text-[10px] px-1.5 py-0`}>
+      {status === "hashed" ? "🔐" : status === "accepted" ? "✓" : "⏳"} {cfg.label}
+    </Badge>
+  )
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────
@@ -125,6 +148,26 @@ export default function FacturacionPage() {
   const isAdmin = user?.role === "admin"
   const [search, setSearch] = useState("")
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+  const [chainValidation, setChainValidation] = useState<HashChainValidation | null>(null)
+  const [validating, setValidating] = useState(false)
+
+  // Validate hash chain when invoices change (only for admin)
+  useEffect(() => {
+    if (!isAdmin || invoices.length === 0) {
+      setChainValidation(null)
+      return
+    }
+    const hashedInvoices = invoices.filter((inv) => inv.hash)
+    if (hashedInvoices.length === 0) {
+      setChainValidation(null)
+      return
+    }
+    setValidating(true)
+    validateHashChain(hashedInvoices).then((result) => {
+      setChainValidation(result)
+      setValidating(false)
+    }).catch(() => setValidating(false))
+  }, [invoices, isAdmin])
 
   const filtered = invoices.filter(
     (inv) =>
@@ -139,7 +182,7 @@ export default function FacturacionPage() {
   const ivaInvoices = invoices.filter((inv) => inv.taxRegime === "iva_general")
   const totalRebuIva = rebuInvoices.reduce((sum, inv) => sum + inv.ivaAmount, 0)
   const totalIvaGeneral = ivaInvoices.reduce((sum, inv) => sum + inv.ivaAmount, 0)
-  const totalIva = totalRebuIva + totalIvaGeneral
+  const hashedCount = invoices.filter((inv) => inv.hash).length
 
   return (
     <div className="p-6 space-y-6">
@@ -153,7 +196,7 @@ export default function FacturacionPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="border-border/50">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15">
@@ -183,7 +226,7 @@ export default function FacturacionPage() {
             </div>
             <div>
               <p className="text-lg font-bold">{formatCurrency(totalRebuIva)}</p>
-              <p className="text-xs text-muted-foreground">IVA REBU ({rebuInvoices.length} fact.)</p>
+              <p className="text-xs text-muted-foreground">IVA REBU ({rebuInvoices.length})</p>
             </div>
           </CardContent>
         </Card>
@@ -194,11 +237,64 @@ export default function FacturacionPage() {
             </div>
             <div>
               <p className="text-lg font-bold">{formatCurrency(totalIvaGeneral)}</p>
-              <p className="text-xs text-muted-foreground">IVA General ({ivaInvoices.length} fact.)</p>
+              <p className="text-xs text-muted-foreground">IVA General ({ivaInvoices.length})</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15">
+              <Hash className="h-4 w-4 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-lg font-bold">{hashedCount}/{invoices.length}</p>
+              <p className="text-xs text-muted-foreground">VeriFactu hashed</p>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* VeriFactu chain integrity (admin only) */}
+      {isAdmin && chainValidation && (
+        <Card className={`border-2 ${chainValidation.isValid ? "border-green-500/30 bg-green-500/5" : "border-destructive/30 bg-destructive/5"}`}>
+          <CardContent className="p-4 flex items-center gap-4">
+            {validating ? (
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            ) : chainValidation.isValid ? (
+              <ShieldCheck className="h-6 w-6 text-green-600 shrink-0" />
+            ) : (
+              <ShieldAlert className="h-6 w-6 text-destructive shrink-0" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold">
+                {chainValidation.isValid
+                  ? "🔐 Cadena de hashes VeriFactu íntegra"
+                  : "⚠️ Cadena de hashes VeriFactu comprometida"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {chainValidation.validLinks} de {chainValidation.totalInvoices} facturas verificadas
+                {chainValidation.brokenAt && ` — Rotura en: ${chainValidation.brokenAt}`}
+              </p>
+              {chainValidation.errors.length > 0 && (
+                <div className="mt-2 space-y-0.5">
+                  {chainValidation.errors.slice(0, 3).map((err, i) => (
+                    <p key={i} className="text-[10px] text-destructive font-mono">{err}</p>
+                  ))}
+                  {chainValidation.errors.length > 3 && (
+                    <p className="text-[10px] text-muted-foreground">...y {chainValidation.errors.length - 3} errores más</p>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">VeriFactu</p>
+              <p className="text-xs font-medium">
+                Obligatorio desde enero 2027
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search */}
       <div className="relative max-w-sm">
@@ -223,10 +319,11 @@ export default function FacturacionPage() {
                     <p className="text-sm font-medium truncate">{inv.clientName}</p>
                     <p className="text-xs text-muted-foreground font-mono">{inv.invoiceNumber}</p>
                     <p className="text-xs text-muted-foreground truncate">{inv.concept}</p>
-                    <div className="flex gap-1 mt-1">
+                    <div className="flex gap-1 mt-1 flex-wrap">
                       <Badge variant="outline" className={inv.taxRegime === "rebu" ? "bg-purple-500/10 text-purple-600 border-purple-500/20 text-[10px] px-1.5 py-0" : "bg-blue-500/10 text-blue-600 border-blue-500/20 text-[10px] px-1.5 py-0"}>
                         {inv.taxRegime === "rebu" ? "REBU" : "IVA"}
                       </Badge>
+                      <VeriFactuBadge status={inv.verifactuStatus} />
                     </div>
                   </div>
                   <div className="text-right shrink-0 ml-3 flex flex-col items-end gap-1">
@@ -268,6 +365,7 @@ export default function FacturacionPage() {
                 <TableHead>Total</TableHead>
                 <TableHead>IVA</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead>VeriFactu</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
@@ -296,6 +394,9 @@ export default function FacturacionPage() {
                       </span>
                     </TableCell>
                     <TableCell>
+                      <VeriFactuBadge status={inv.verifactuStatus} />
+                    </TableCell>
+                    <TableCell>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -310,7 +411,7 @@ export default function FacturacionPage() {
               })}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                     {invoices.length === 0 ? "Las facturas se generan automáticamente al completar ventas" : "No se encontraron facturas"}
                   </TableCell>
                 </TableRow>
@@ -344,9 +445,12 @@ export default function FacturacionPage() {
                     <p className="text-xs text-muted-foreground">
                       {new Date(selectedInvoice.issuedDate).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}
                     </p>
-                    <Badge variant="outline" className={`mt-1 ${selectedInvoice.taxRegime === "rebu" ? "bg-purple-500/10 text-purple-600 border-purple-500/20" : "bg-blue-500/10 text-blue-600 border-blue-500/20"}`}>
-                      {selectedInvoice.taxRegime === "rebu" ? "REBU" : "IVA General"}
-                    </Badge>
+                    <div className="flex gap-1 mt-1 justify-end flex-wrap">
+                      <Badge variant="outline" className={selectedInvoice.taxRegime === "rebu" ? "bg-purple-500/10 text-purple-600 border-purple-500/20" : "bg-blue-500/10 text-blue-600 border-blue-500/20"}>
+                        {selectedInvoice.taxRegime === "rebu" ? "REBU" : "IVA General"}
+                      </Badge>
+                      <VeriFactuBadge status={selectedInvoice.verifactuStatus} />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -409,8 +513,21 @@ export default function FacturacionPage() {
                 )}
               </div>
 
+              {/* VeriFactu hash info (admin only) */}
+              {isAdmin && selectedInvoice.hash && (
+                <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5" /> VeriFactu — Cadena de hashes
+                  </p>
+                  <div className="text-[10px] font-mono text-muted-foreground space-y-0.5">
+                    <p>Hash: {selectedInvoice.hash.slice(0, 32)}...</p>
+                    <p>Anterior: {selectedInvoice.previousHash ? `${selectedInvoice.previousHash.slice(0, 32)}...` : "GENESIS (primera factura)"}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Badge variant="outline" className={statusConfig[selectedInvoice.status].className}>
                     {statusConfig[selectedInvoice.status].label}
                   </Badge>

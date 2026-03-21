@@ -22,6 +22,7 @@ import {
   dbAddInvoice, dbUpdateInvoice, dbGetNextInvoiceNumber,
 } from "@/lib/supabase-service"
 import { calculateInvoiceTax } from "@/lib/tax-utils"
+import { generateInvoiceHash } from "@/lib/verifactu"
 
 // ─── ID generator ────────────────────────────────────────────────────────────
 
@@ -409,7 +410,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           purchasePrice: vehicle.purchasePrice,
           taxRegime: sale.taxRegime || "rebu",
         })
-        dbGetNextInvoiceNumber().then((invoiceNumber) => {
+        dbGetNextInvoiceNumber().then(async (invoiceNumber) => {
+          // Get previous hash from latest invoice in chain
+          const sortedInvoices = [...state.invoices].sort(
+            (a, b) => new Date(a.issuedDate).getTime() - new Date(b.issuedDate).getTime()
+          )
+          const lastInvoice = sortedInvoices[sortedInvoices.length - 1]
+          const previousHash = lastInvoice?.hash || null
+
           const invoice: Invoice = {
             id: generateId(),
             invoiceNumber,
@@ -426,14 +434,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             purchasePrice: vehicle.purchasePrice,
             status: "emitida",
             issuedDate: new Date().toISOString().split("T")[0],
+            previousHash: previousHash || undefined,
+            verifactuStatus: "pending",
             createdAt: new Date().toISOString(),
+          }
+          // Generate VeriFactu hash
+          try {
+            const hash = await generateInvoiceHash(invoice, previousHash)
+            invoice.hash = hash
+            invoice.verifactuStatus = "hashed"
+          } catch (err) {
+            console.error("VeriFactu hash generation error:", err)
           }
           dispatch({ type: "ADD_INVOICE", payload: invoice })
           dbAddInvoice(invoice).catch((err) => console.error("DB addInvoice error:", err))
         }).catch((err) => console.error("DB getNextInvoiceNumber error:", err))
       }
     }
-  }, [state.sales, state.vehicles, state.clients])
+  }, [state.sales, state.vehicles, state.clients, state.invoices])
 
   const cancelSale = useCallback((id: string) => {
     const sale = state.sales.find((s) => s.id === id)

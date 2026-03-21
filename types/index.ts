@@ -190,6 +190,7 @@ export interface Sale {
 // ─── Facturas ─────────────────────────────────────────────────────────────────
 
 export type InvoiceStatus = "emitida" | "pagada" | "pendiente" | "anulada";
+export type VeriFactuStatus = "pending" | "hashed" | "sent" | "accepted" | "rejected";
 
 export interface Invoice {
   id: string;
@@ -208,6 +209,10 @@ export interface Invoice {
   status: InvoiceStatus;
   issuedDate: string;      // ISO date
   notes?: string;
+  // VeriFactu fields
+  hash?: string;            // SHA-256 hash of this invoice
+  previousHash?: string;    // hash of the previous invoice in the chain
+  verifactuStatus?: VeriFactuStatus; // status of VeriFactu submission
   createdAt: string;
 }
 

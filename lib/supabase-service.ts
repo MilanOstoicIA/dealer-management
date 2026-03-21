@@ -150,6 +150,9 @@ function invoiceFromRow(r: Record<string, unknown>): Invoice {
     status: (r.status as Invoice["status"]) || "emitida",
     issuedDate: r.issued_date as string,
     notes: (r.notes as string) || undefined,
+    hash: (r.hash as string) || undefined,
+    previousHash: (r.previous_hash as string) || undefined,
+    verifactuStatus: (r.verifactu_status as Invoice["verifactuStatus"]) || "pending",
     createdAt: r.created_at as string,
   }
 }
@@ -172,6 +175,9 @@ function invoiceToRow(inv: Partial<Invoice>): Record<string, unknown> {
   if (inv.status !== undefined) row.status = inv.status
   if (inv.issuedDate !== undefined) row.issued_date = inv.issuedDate
   if (inv.notes !== undefined) row.notes = inv.notes
+  if (inv.hash !== undefined) row.hash = inv.hash
+  if (inv.previousHash !== undefined) row.previous_hash = inv.previousHash
+  if (inv.verifactuStatus !== undefined) row.verifactu_status = inv.verifactuStatus
   return row
 }
 
