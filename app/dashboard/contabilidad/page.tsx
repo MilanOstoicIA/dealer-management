@@ -53,6 +53,7 @@ import {
   Area,
 } from "recharts"
 import { useStore } from "@/lib/store"
+import { Scale } from "lucide-react"
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(amount)
@@ -78,10 +79,10 @@ const expenseCategoryLabels: Record<string, string> = {
   otro: "Otros",
 }
 
-type TabId = "resumen" | "vendedores" | "gastos" | "historial"
+type TabId = "resumen" | "vendedores" | "gastos" | "fiscal" | "historial"
 
 export default function ContabilidadPage() {
-  const { vehicles, sales, expenses, users, getUserById, getVehicleById, getClientById } = useStore()
+  const { vehicles, sales, expenses, users, invoices, getUserById, getVehicleById, getClientById } = useStore()
   const [selectedYear, setSelectedYear] = useState("2026")
   const [activeTab, setActiveTab] = useState<TabId>("resumen")
 
@@ -182,6 +183,7 @@ export default function ContabilidadPage() {
     { id: "resumen", label: "Resumen", icon: <BarChart3 className="h-4 w-4" /> },
     { id: "vendedores", label: "Vendedores", icon: <Users className="h-4 w-4" /> },
     { id: "gastos", label: "Gastos", icon: <Receipt className="h-4 w-4" /> },
+    { id: "fiscal", label: "Fiscal", icon: <Scale className="h-4 w-4" /> },
     { id: "historial", label: "Historial", icon: <Table2 className="h-4 w-4" /> },
   ]
 
@@ -595,6 +597,127 @@ export default function ContabilidadPage() {
           </Card>
         </div>
       )}
+
+      {activeTab === "fiscal" && (() => {
+        const rebuSales = completedSales.filter((s) => s.taxRegime === "rebu")
+        const ivaSales = completedSales.filter((s) => s.taxRegime === "iva_general")
+        const rebuInvoices = invoices.filter((inv) => inv.taxRegime === "rebu")
+        const ivaGeneralInvoices = invoices.filter((inv) => inv.taxRegime === "iva_general")
+        const totalRebuIva = rebuInvoices.reduce((sum, inv) => sum + inv.ivaAmount, 0)
+        const totalIvaGeneral = ivaGeneralInvoices.reduce((sum, inv) => sum + inv.ivaAmount, 0)
+        const totalRebuMargin = rebuInvoices.reduce((sum, inv) => sum + inv.total - (inv.purchasePrice || 0), 0)
+
+        // Quarterly breakdown for Modelo 303
+        const quarters = [
+          { label: "T1 (Ene-Mar)", months: ["01", "02", "03"] },
+          { label: "T2 (Abr-Jun)", months: ["04", "05", "06"] },
+          { label: "T3 (Jul-Sep)", months: ["07", "08", "09"] },
+          { label: "T4 (Oct-Dic)", months: ["10", "11", "12"] },
+        ]
+        const quarterlyData = quarters.map((q) => {
+          const qInvoices = invoices.filter((inv) => {
+            const month = inv.issuedDate.slice(5, 7)
+            return inv.issuedDate.startsWith(selectedYear) && q.months.includes(month)
+          })
+          const qRebu = qInvoices.filter((inv) => inv.taxRegime === "rebu")
+          const qIva = qInvoices.filter((inv) => inv.taxRegime === "iva_general")
+          return {
+            ...q,
+            rebuCount: qRebu.length,
+            rebuIva: qRebu.reduce((sum, inv) => sum + inv.ivaAmount, 0),
+            rebuMargin: qRebu.reduce((sum, inv) => sum + inv.total - (inv.purchasePrice || 0), 0),
+            ivaCount: qIva.length,
+            ivaRepercutido: qIva.reduce((sum, inv) => sum + inv.ivaAmount, 0),
+            ivaBase: qIva.reduce((sum, inv) => sum + inv.subtotal, 0),
+            totalIva: qRebu.reduce((sum, inv) => sum + inv.ivaAmount, 0) + qIva.reduce((sum, inv) => sum + inv.ivaAmount, 0),
+          }
+        })
+
+        return (
+          <div className="space-y-6">
+            {/* Summary cards */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Card className="border-purple-500/20 bg-purple-500/5">
+                <CardContent className="p-5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">REBU — Ventas bienes usados</p>
+                  <p className="mt-2 text-2xl font-bold text-purple-600">{rebuSales.length} ventas</p>
+                  <p className="text-sm text-muted-foreground">Margen total: {formatCurrency(totalRebuMargin)}</p>
+                  <p className="text-sm text-muted-foreground">IVA implícito: {formatCurrency(totalRebuIva)}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-blue-500/20 bg-blue-500/5">
+                <CardContent className="p-5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">IVA General 21%</p>
+                  <p className="mt-2 text-2xl font-bold text-blue-600">{ivaSales.length} ventas</p>
+                  <p className="text-sm text-muted-foreground">IVA repercutido: {formatCurrency(totalIvaGeneral)}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-primary/30 bg-primary/5 ring-1 ring-primary/20">
+                <CardContent className="p-5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total IVA a declarar</p>
+                  <p className="mt-2 text-2xl font-bold text-primary">{formatCurrency(totalRebuIva + totalIvaGeneral)}</p>
+                  <p className="text-sm text-muted-foreground">Modelo 303</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Quarterly breakdown - Modelo 303 helper */}
+            <Card className="border-border/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Scale className="h-4 w-4" /> Desglose trimestral — Modelo 303 ({selectedYear})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Trimestre</TableHead>
+                      <TableHead className="text-center">REBU (fact.)</TableHead>
+                      <TableHead className="text-right">Margen REBU</TableHead>
+                      <TableHead className="text-right">IVA REBU</TableHead>
+                      <TableHead className="text-center">IVA Gen. (fact.)</TableHead>
+                      <TableHead className="text-right">Base IVA Gen.</TableHead>
+                      <TableHead className="text-right">IVA Gen.</TableHead>
+                      <TableHead className="text-right font-semibold">Total IVA</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {quarterlyData.map((q) => (
+                      <TableRow key={q.label}>
+                        <TableCell className="font-medium">{q.label}</TableCell>
+                        <TableCell className="text-center">{q.rebuCount}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(q.rebuMargin)}</TableCell>
+                        <TableCell className="text-right text-purple-600">{formatCurrency(q.rebuIva)}</TableCell>
+                        <TableCell className="text-center">{q.ivaCount}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(q.ivaBase)}</TableCell>
+                        <TableCell className="text-right text-blue-600">{formatCurrency(q.ivaRepercutido)}</TableCell>
+                        <TableCell className="text-right font-bold">{formatCurrency(q.totalIva)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <p className="text-xs text-muted-foreground mt-3">
+                  * El IVA REBU se calcula sobre el margen de beneficio (precio venta - precio compra). El IVA General se repercute íntegro al 21%.
+                  Estos datos son orientativos para rellenar el Modelo 303 ante la AEAT.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Legal info */}
+            <Card className="border-purple-500/20 bg-purple-500/5">
+              <CardContent className="p-5 space-y-2">
+                <p className="text-sm font-semibold text-purple-700">Régimen Especial de Bienes Usados (REBU)</p>
+                <p className="text-xs text-muted-foreground">
+                  Art. 135-139 Ley 37/1992 del IVA. El concesionario tributa solo por el margen de beneficio
+                  (diferencia entre precio de venta y precio de compra) en lugar del precio total.
+                  El IVA no se desglosa en la factura al cliente.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )
+      })()}
 
       {activeTab === "historial" && (
         <>

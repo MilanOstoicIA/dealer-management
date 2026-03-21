@@ -31,7 +31,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/auth"
-import type { Sale, SaleStatus, PaymentMethod } from "@/types"
+import type { Sale, SaleStatus, PaymentMethod, TaxRegime } from "@/types"
+import { calculateInvoiceTax, formatEur } from "@/lib/tax-utils"
 
 const statusConfig: Record<SaleStatus, { label: string; className: string }> = {
   en_proceso: { label: "En proceso", className: "bg-yellow-500/15 text-yellow-600 border-yellow-500/20" },
@@ -141,7 +142,7 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
 
   const [form, setForm] = useState({
     clientId: "", vehicleId: "", sellerId: "", saleDate: new Date().toISOString().split("T")[0],
-    paymentMethod: "contado" as PaymentMethod, commissionRate: 3, discount: 0, notes: "",
+    paymentMethod: "contado" as PaymentMethod, taxRegime: "rebu" as TaxRegime, commissionRate: 3, discount: 0, notes: "",
   })
 
   const selectedVehicle = vehicles.find((v) => v.id === form.vehicleId)
@@ -160,7 +161,7 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
     if (open) {
       setForm({
         clientId: "", vehicleId: "", sellerId: sellers[0]?.id || "", saleDate: new Date().toISOString().split("T")[0],
-        paymentMethod: "contado", commissionRate: 3, discount: 0, notes: "",
+        paymentMethod: "contado", taxRegime: "rebu", commissionRate: 3, discount: 0, notes: "",
       })
     }
   }, [open])
@@ -171,7 +172,7 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
     createSale({
       vehicleId: form.vehicleId, clientId: form.clientId, sellerId: form.sellerId,
       saleDate: form.saleDate, salePrice, paymentMethod: form.paymentMethod,
-      status: "en_proceso", commissionRate: form.commissionRate,
+      taxRegime: form.taxRegime, status: "en_proceso", commissionRate: form.commissionRate,
       discount: form.discount || undefined, notes: form.notes || undefined,
     })
     onClose()
@@ -225,7 +226,7 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
               </Select>
             </div>
           </div>
-          <div className={`grid grid-cols-1 gap-3 ${isAdmin ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Fecha</Label>
               <Input type="date" value={form.saleDate} onChange={(e) => setForm((f) => ({ ...f, saleDate: e.target.value }))} />
@@ -241,6 +242,16 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label>Régimen fiscal</Label>
+              <Select value={form.taxRegime} onValueChange={(v) => v && setForm((f) => ({ ...f, taxRegime: v as TaxRegime }))}>
+                <SelectTrigger><SelectValue>{form.taxRegime === "rebu" ? "REBU — Margen" : "IVA General 21%"}</SelectValue></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="rebu">REBU — Margen</SelectItem>
+                  <SelectItem value="iva_general">IVA General 21%</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             {isAdmin && (
               <div className="space-y-1.5">
                 <Label>Comisión (%)</Label>
@@ -249,8 +260,27 @@ function SaleFormDialog({ open, onClose }: SaleFormProps) {
             )}
           </div>
           {selectedVehicle && (
-            <div className="rounded-lg bg-muted/50 p-3 text-sm">
-              <p>Precio: <span className="font-bold">{formatCurrency(salePrice)}</span></p>
+            <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
+              <p>Precio venta: <span className="font-bold">{formatCurrency(salePrice)}</span></p>
+              {form.taxRegime === "rebu" && isAdmin && (() => {
+                const tax = calculateInvoiceTax({ salePrice, purchasePrice: selectedVehicle.purchasePrice, taxRegime: "rebu" })
+                if (tax.regime !== "rebu") return null
+                return (
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    <p>Precio compra: {formatEur(selectedVehicle.purchasePrice)} · Margen: {formatEur(tax.margin)}</p>
+                    {tax.margin > 0 ? (
+                      <p>Base imponible REBU: {formatEur(tax.taxBase)} · IVA implícito: {formatEur(tax.ivaAmount)}</p>
+                    ) : (
+                      <p className="text-amber-600">Margen ≤ 0 — sin IVA a repercutir</p>
+                    )}
+                  </div>
+                )
+              })()}
+              {form.taxRegime === "iva_general" && (
+                <p className="text-xs text-muted-foreground">
+                  Base: {formatEur(salePrice / 1.21)} + IVA 21%: {formatEur(salePrice - salePrice / 1.21)}
+                </p>
+              )}
               {isAdmin && <p className="text-xs text-muted-foreground">Comisión: {formatCurrency(salePrice * (form.commissionRate / 100))}</p>}
             </div>
           )}
@@ -498,6 +528,9 @@ export default function VentasPage() {
                     {statusConfig[selectedSale.status].label}
                   </Badge>
                   <Badge variant="outline">{paymentLabels[selectedSale.paymentMethod]}</Badge>
+                  <Badge variant="outline" className={selectedSale.taxRegime === "rebu" ? "bg-purple-500/10 text-purple-600 border-purple-500/20" : "bg-blue-500/10 text-blue-600 border-blue-500/20"}>
+                    {selectedSale.taxRegime === "rebu" ? "REBU" : "IVA General"}
+                  </Badge>
                   {isAdmin && (
                     <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                       <Percent className="h-3 w-3 mr-1" />
@@ -580,6 +613,36 @@ export default function VentasPage() {
                             </p>
                           </div>
                         </div>
+                        {/* REBU/IVA tax info */}
+                        {selectedVehicle && (() => {
+                          const taxInfo = calculateInvoiceTax({
+                            salePrice: selectedSale.salePrice,
+                            purchasePrice: selectedVehicle.purchasePrice,
+                            taxRegime: selectedSale.taxRegime || "rebu",
+                          })
+                          return (
+                            <div className="col-span-2 pt-2 border-t border-border/50">
+                              <p className="text-xs font-semibold text-muted-foreground mb-1">
+                                {taxInfo.regime === "rebu" ? "REBU — Impuesto sobre el margen" : "IVA General 21%"}
+                              </p>
+                              {taxInfo.regime === "rebu" ? (
+                                taxInfo.margin > 0 ? (
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div><span className="text-muted-foreground">Base imponible:</span> <span className="font-medium">{formatEur(taxInfo.taxBase)}</span></div>
+                                    <div><span className="text-muted-foreground">IVA implícito:</span> <span className="font-medium">{formatEur(taxInfo.ivaAmount)}</span></div>
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-amber-600">Margen ≤ 0 — sin IVA a repercutir</p>
+                                )
+                              ) : (
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div><span className="text-muted-foreground">Base imponible:</span> <span className="font-medium">{formatEur(taxInfo.subtotal)}</span></div>
+                                  <div><span className="text-muted-foreground">IVA 21%:</span> <span className="font-medium">{formatEur(taxInfo.ivaAmount)}</span></div>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </>
                     )}
                   </div>

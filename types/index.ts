@@ -166,6 +166,7 @@ export interface ClientVehicleInfo {
 
 export type PaymentMethod = "contado" | "financiación" | "leasing";
 export type SaleStatus = "en_proceso" | "completada" | "cancelada";
+export type TaxRegime = "iva_general" | "rebu";
 
 export interface Sale {
   id: string;
@@ -176,6 +177,7 @@ export interface Sale {
   salePrice: number;       // EUR
   paymentMethod: PaymentMethod;
   status: SaleStatus;
+  taxRegime: TaxRegime;    // régimen fiscal (REBU por defecto para usados)
   commissionRate: number;  // porcentaje (ej: 3 = 3%)
   commission: number;      // EUR (calculado)
   discount?: number;       // EUR descuento aplicado
@@ -183,6 +185,30 @@ export interface Sale {
   tradeInValue?: number;   // EUR valor del vehículo de intercambio
   financingDetails?: string; // detalles de financiación
   notes?: string;
+}
+
+// ─── Facturas ─────────────────────────────────────────────────────────────────
+
+export type InvoiceStatus = "emitida" | "pagada" | "pendiente" | "anulada";
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;   // ej: "FAC-2026-0001"
+  saleId: string;
+  clientId: string;
+  clientName: string;
+  clientDni: string;
+  concept: string;         // descripción del vehículo vendido
+  taxRegime: TaxRegime;
+  subtotal: number;        // base imponible
+  ivaRate: number | null;  // 21 para IVA General, null para REBU
+  ivaAmount: number;       // cuota IVA (en REBU es el IVA implícito del margen)
+  total: number;           // importe total
+  purchasePrice: number | null; // precio de compra (para cálculo REBU)
+  status: InvoiceStatus;
+  issuedDate: string;      // ISO date
+  notes?: string;
+  createdAt: string;
 }
 
 // ─── Vistas enriquecidas (con relaciones resueltas) ───────────────────────────

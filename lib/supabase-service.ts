@@ -2,7 +2,7 @@ import { supabase } from "./supabase"
 import type {
   Vehicle, Client, Sale, Appointment, Expense, User, ForumPost,
   VehicleServiceRecord, ClientVehicleInfo, WorkItem, Tracking,
-  Supplier, TrackingHistoryEntry,
+  Supplier, TrackingHistoryEntry, Invoice,
 } from "@/types"
 
 // ─── Helpers: snake_case <-> camelCase mappers ─────────────────────────────
@@ -99,6 +99,7 @@ function saleFromRow(r: Record<string, unknown>): Sale {
     salePrice: Number(r.sale_price),
     paymentMethod: r.payment_method as Sale["paymentMethod"],
     status: r.status as Sale["status"],
+    taxRegime: (r.tax_regime as Sale["taxRegime"]) || "rebu",
     commissionRate: Number(r.commission_rate),
     commission: Number(r.commission),
     discount: r.discount ? Number(r.discount) : undefined,
@@ -123,8 +124,54 @@ function saleToRow(s: Partial<Sale>): Record<string, unknown> {
   if (s.discount !== undefined) row.discount = s.discount
   if (s.tradeInVehicleId !== undefined) row.trade_in_vehicle_id = s.tradeInVehicleId
   if (s.tradeInValue !== undefined) row.trade_in_value = s.tradeInValue
+  if (s.taxRegime !== undefined) row.tax_regime = s.taxRegime
   if (s.financingDetails !== undefined) row.financing_details = s.financingDetails
   if (s.notes !== undefined) row.notes = s.notes
+  return row
+}
+
+// ─── Invoice mappers ─────────────────────────────────────────────────────────
+
+function invoiceFromRow(r: Record<string, unknown>): Invoice {
+  return {
+    id: r.id as string,
+    invoiceNumber: r.invoice_number as string,
+    saleId: r.sale_id as string,
+    clientId: r.client_id as string,
+    clientName: r.client_name as string,
+    clientDni: (r.client_dni as string) || "",
+    concept: r.concept as string,
+    taxRegime: (r.tax_regime as Invoice["taxRegime"]) || "rebu",
+    subtotal: Number(r.subtotal),
+    ivaRate: r.iva_rate != null ? Number(r.iva_rate) : null,
+    ivaAmount: Number(r.iva_amount),
+    total: Number(r.total),
+    purchasePrice: r.purchase_price != null ? Number(r.purchase_price) : null,
+    status: (r.status as Invoice["status"]) || "emitida",
+    issuedDate: r.issued_date as string,
+    notes: (r.notes as string) || undefined,
+    createdAt: r.created_at as string,
+  }
+}
+
+function invoiceToRow(inv: Partial<Invoice>): Record<string, unknown> {
+  const row: Record<string, unknown> = {}
+  if (inv.id !== undefined) row.id = inv.id
+  if (inv.invoiceNumber !== undefined) row.invoice_number = inv.invoiceNumber
+  if (inv.saleId !== undefined) row.sale_id = inv.saleId
+  if (inv.clientId !== undefined) row.client_id = inv.clientId
+  if (inv.clientName !== undefined) row.client_name = inv.clientName
+  if (inv.clientDni !== undefined) row.client_dni = inv.clientDni
+  if (inv.concept !== undefined) row.concept = inv.concept
+  if (inv.taxRegime !== undefined) row.tax_regime = inv.taxRegime
+  if (inv.subtotal !== undefined) row.subtotal = inv.subtotal
+  if (inv.ivaRate !== undefined) row.iva_rate = inv.ivaRate
+  if (inv.ivaAmount !== undefined) row.iva_amount = inv.ivaAmount
+  if (inv.total !== undefined) row.total = inv.total
+  if (inv.purchasePrice !== undefined) row.purchase_price = inv.purchasePrice
+  if (inv.status !== undefined) row.status = inv.status
+  if (inv.issuedDate !== undefined) row.issued_date = inv.issuedDate
+  if (inv.notes !== undefined) row.notes = inv.notes
   return row
 }
 
@@ -270,6 +317,7 @@ export interface SupabaseState {
   clientVehicleInfo: ClientVehicleInfo[]
   trackings: Tracking[]
   suppliers: Supplier[]
+  invoices: Invoice[]
 }
 
 export async function fetchAllData(): Promise<SupabaseState> {
@@ -285,6 +333,7 @@ export async function fetchAllData(): Promise<SupabaseState> {
     { data: clientVehicleInfoData },
     { data: trackingsData },
     { data: suppliersData },
+    { data: invoicesData },
   ] = await Promise.all([
     supabase.from("users").select("*"),
     supabase.from("vehicles").select("*"),
@@ -297,6 +346,7 @@ export async function fetchAllData(): Promise<SupabaseState> {
     supabase.from("client_vehicle_info").select("*"),
     supabase.from("trackings").select("*"),
     supabase.from("suppliers").select("*"),
+    supabase.from("invoices").select("*").order("issued_date", { ascending: false }),
   ])
 
   return {
@@ -311,6 +361,7 @@ export async function fetchAllData(): Promise<SupabaseState> {
     clientVehicleInfo: (clientVehicleInfoData || []).map(clientVehicleInfoFromRow),
     trackings: (trackingsData || []).map(trackingFromRow),
     suppliers: (suppliersData || []).map(supplierFromRow),
+    invoices: (invoicesData || []).map(invoiceFromRow),
   }
 }
 
@@ -577,6 +628,35 @@ export async function dbFetchTrackingHistory(trackingId: string): Promise<Tracki
     .order("created_at", { ascending: true })
   if (error) throw error
   return (data || []).map(trackingHistoryFromRow)
+}
+
+// Invoices
+export async function dbAddInvoice(inv: Invoice) {
+  const { data, error } = await supabase.from("invoices").insert(invoiceToRow(inv)).select().single()
+  if (error) throw error
+  return invoiceFromRow(data)
+}
+
+export async function dbUpdateInvoice(id: string, updates: Partial<Invoice>) {
+  const { error } = await supabase.from("invoices").update(invoiceToRow(updates)).eq("id", id)
+  if (error) throw error
+}
+
+export async function dbGetNextInvoiceNumber(): Promise<string> {
+  const year = new Date().getFullYear()
+  const prefix = `FAC-${year}-`
+  const { data } = await supabase
+    .from("invoices")
+    .select("invoice_number")
+    .like("invoice_number", `${prefix}%`)
+    .order("invoice_number", { ascending: false })
+    .limit(1)
+
+  if (data && data.length > 0) {
+    const lastNum = parseInt((data[0].invoice_number as string).replace(prefix, ""), 10)
+    return `${prefix}${String(lastNum + 1).padStart(4, "0")}`
+  }
+  return `${prefix}0001`
 }
 
 // ─── Auth: verify password ─────────────────────────────────────────────────

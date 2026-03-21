@@ -48,6 +48,7 @@ export default function ConfiguracionPage() {
   const [businessCif, setBusinessCif] = useState("B12345678")
   const [businessWeb, setBusinessWeb] = useState("www.dealerhub.es")
   const [ivaRate, setIvaRate] = useState("21")
+  const [defaultTaxRegime, setDefaultTaxRegime] = useState("rebu")
   const [defaultCommission, setDefaultCommission] = useState("3")
   const [calendarUrl, setCalendarUrl] = useState("")
   const [saved, setSaved] = useState(false)
@@ -147,7 +148,22 @@ export default function ConfiguracionPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="text-xs text-muted-foreground font-medium">Régimen fiscal por defecto</label>
+                  <Select value={defaultTaxRegime} onValueChange={(v) => v && setDefaultTaxRegime(v)}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue>{defaultTaxRegime === "rebu" ? "REBU — Margen" : "IVA General 21%"}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="rebu">REBU — Margen</SelectItem>
+                      <SelectItem value="iva_general">IVA General 21%</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    REBU: impuesto solo sobre el margen (recomendado para vehículos usados)
+                  </p>
+                </div>
                 <div>
                   <label className="text-xs text-muted-foreground font-medium">{t("settings.iva")}</label>
                   <Input type="number" value={ivaRate} onChange={(e) => setIvaRate(e.target.value)} className="mt-1" />

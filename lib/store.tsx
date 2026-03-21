@@ -4,7 +4,7 @@ import { createContext, useContext, useReducer, useEffect, useState, useCallback
 import type {
   Vehicle, Client, Sale, Appointment, Expense, User, ForumPost,
   VehicleServiceRecord, ClientVehicleInfo, Tracking,
-  Supplier, TrackingHistoryEntry,
+  Supplier, TrackingHistoryEntry, Invoice,
 } from "@/types"
 import {
   fetchAllData,
@@ -19,7 +19,9 @@ import {
   dbAddTracking, dbUpdateTracking, dbDeleteTracking,
   dbAddSupplier, dbUpdateSupplier, dbDeleteSupplier,
   dbAddTrackingHistory, dbFetchTrackingHistory,
+  dbAddInvoice, dbUpdateInvoice, dbGetNextInvoiceNumber,
 } from "@/lib/supabase-service"
+import { calculateInvoiceTax } from "@/lib/tax-utils"
 
 // ─── ID generator ────────────────────────────────────────────────────────────
 
@@ -41,6 +43,7 @@ interface StoreState {
   clientVehicleInfo: ClientVehicleInfo[]
   trackings: Tracking[]
   suppliers: Supplier[]
+  invoices: Invoice[]
 }
 
 const emptyState: StoreState = {
@@ -55,6 +58,7 @@ const emptyState: StoreState = {
   clientVehicleInfo: [],
   trackings: [],
   suppliers: [],
+  invoices: [],
 }
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
@@ -88,6 +92,8 @@ type Action =
   | { type: "ADD_SUPPLIER"; payload: Supplier }
   | { type: "UPDATE_SUPPLIER"; id: string; updates: Partial<Supplier> }
   | { type: "DELETE_SUPPLIER"; id: string }
+  | { type: "ADD_INVOICE"; payload: Invoice }
+  | { type: "UPDATE_INVOICE"; id: string; updates: Partial<Invoice> }
 
 // ─── Reducer ─────────────────────────────────────────────────────────────────
 
@@ -229,6 +235,12 @@ function reducer(state: StoreState, action: Action): StoreState {
     case "DELETE_SUPPLIER":
       return { ...state, suppliers: state.suppliers.filter((s) => s.id !== action.id) }
 
+    // ── Invoices ──
+    case "ADD_INVOICE":
+      return { ...state, invoices: [action.payload, ...state.invoices] }
+    case "UPDATE_INVOICE":
+      return { ...state, invoices: state.invoices.map((inv) => inv.id === action.id ? { ...inv, ...action.updates } : inv) }
+
     default:
       return state
   }
@@ -262,6 +274,8 @@ interface StoreContextType extends StoreState {
   addSupplier: (s: Omit<Supplier, "id" | "createdAt">) => void
   updateSupplier: (id: string, updates: Partial<Supplier>) => void
   deleteSupplier: (id: string) => void
+  addInvoice: (inv: Invoice) => void
+  updateInvoice: (id: string, updates: Partial<Invoice>) => void
   getSupplierById: (id: string) => Supplier | undefined
   fetchTrackingHistory: (trackingId: string) => Promise<TrackingHistoryEntry[]>
   getUserById: (id: string) => User | undefined
@@ -386,8 +400,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dbUpdateSale(id, { status: "completada" }).catch((err) => console.error("DB completeSale error:", err))
     if (sale) {
       dbUpdateVehicle(sale.vehicleId, { status: "vendido" }).catch((err) => console.error("DB updateVehicle error:", err))
+      // Auto-generate invoice
+      const vehicle = state.vehicles.find((v) => v.id === sale.vehicleId)
+      const client = state.clients.find((c) => c.id === sale.clientId)
+      if (vehicle && client) {
+        const taxResult = calculateInvoiceTax({
+          salePrice: sale.salePrice,
+          purchasePrice: vehicle.purchasePrice,
+          taxRegime: sale.taxRegime || "rebu",
+        })
+        dbGetNextInvoiceNumber().then((invoiceNumber) => {
+          const invoice: Invoice = {
+            id: generateId(),
+            invoiceNumber,
+            saleId: sale.id,
+            clientId: client.id,
+            clientName: client.name,
+            clientDni: client.dni || "",
+            concept: `${vehicle.brand} ${vehicle.model} ${vehicle.year} — ${vehicle.licensePlate}`,
+            taxRegime: sale.taxRegime || "rebu",
+            subtotal: taxResult.regime === "iva_general" ? taxResult.subtotal : sale.salePrice,
+            ivaRate: taxResult.regime === "iva_general" ? taxResult.ivaRate : null,
+            ivaAmount: taxResult.ivaAmount,
+            total: taxResult.regime === "iva_general" ? taxResult.total : taxResult.salePrice,
+            purchasePrice: vehicle.purchasePrice,
+            status: "emitida",
+            issuedDate: new Date().toISOString().split("T")[0],
+            createdAt: new Date().toISOString(),
+          }
+          dispatch({ type: "ADD_INVOICE", payload: invoice })
+          dbAddInvoice(invoice).catch((err) => console.error("DB addInvoice error:", err))
+        }).catch((err) => console.error("DB getNextInvoiceNumber error:", err))
+      }
     }
-  }, [state.sales])
+  }, [state.sales, state.vehicles, state.clients])
 
   const cancelSale = useCallback((id: string) => {
     const sale = state.sales.find((s) => s.id === id)
@@ -524,6 +570,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dbDeleteSupplier(id).catch((err) => console.error("DB deleteSupplier error:", err))
   }, [])
 
+  // ── Invoice actions ──
+  const addInvoice = useCallback((inv: Invoice) => {
+    dispatch({ type: "ADD_INVOICE", payload: inv })
+    dbAddInvoice(inv).catch((err) => console.error("DB addInvoice error:", err))
+  }, [])
+
+  const updateInvoice = useCallback((id: string, updates: Partial<Invoice>) => {
+    dispatch({ type: "UPDATE_INVOICE", id, updates })
+    dbUpdateInvoice(id, updates).catch((err) => console.error("DB updateInvoice error:", err))
+  }, [])
+
   const getSupplierById = useCallback((id: string) => state.suppliers.find((s) => s.id === id), [state.suppliers])
 
   const fetchTrackingHistoryFn = useCallback(async (trackingId: string) => {
@@ -556,6 +613,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     addForumPost, updateForumPost,
     addTracking, updateTracking, deleteTracking,
     addSupplier, updateSupplier, deleteSupplier, getSupplierById,
+    addInvoice, updateInvoice,
     fetchTrackingHistory: fetchTrackingHistoryFn,
     getUserById, getVehicleById, getClientById,
     getServiceRecordsByVehicle, getClientVehicleInfoFn, getDashboardStats,
