@@ -20,6 +20,8 @@ import {
   Mail,
   Phone,
   MessageCircle,
+  ExternalLink as ExternalLinkIcon,
+  Calculator,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -43,6 +45,8 @@ import {
 import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/auth"
 import { getMailtoLink, getWhatsAppLink, getTelLink } from "@/lib/communication-templates"
+import { getLinksForTrackingCategory, type ExternalLink } from "@/lib/external-links"
+import { quickMonthlyPayment, REFERENCE_RATES } from "@/lib/financing-calculator"
 import type { TrackingCategory, TrackingStatus, TrackingPriority, TrackingHistoryEntry, SupplierCategory } from "@/types"
 
 const categoryConfig: Record<TrackingCategory, { label: string; icon: React.ReactNode; color: string }> = {
@@ -671,6 +675,57 @@ export default function SeguimientosPage() {
                           <p className="text-sm font-medium">{new Date(detail.estimatedDelivery).toLocaleDateString("es-ES")}</p>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* External links for this tracking category */}
+                  {(() => {
+                    const links = getLinksForTrackingCategory(detail.category)
+                    if (links.length === 0) return null
+                    return (
+                      <div className="rounded-lg bg-muted/50 p-3">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Enlaces útiles</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {links.map((link) => (
+                            <a
+                              key={link.id}
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs hover:bg-muted transition-colors"
+                              title={link.description}
+                            >
+                              <ExternalLinkIcon className="h-3 w-3 text-muted-foreground" />
+                              {link.name}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Financing simulator for financiacion trackings */}
+                  {detail.category === "financiacion" && vehicle && (
+                    <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3">
+                      <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5 mb-2">
+                        <Calculator className="h-3.5 w-3.5" /> Simulación rápida de cuotas
+                      </p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                        <span className="text-muted-foreground">Precio vehículo:</span>
+                        <span className="font-medium">{new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(vehicle.price)}</span>
+                        {Object.entries(REFERENCE_RATES).slice(0, 3).map(([key, rate]) => {
+                          const payment60 = quickMonthlyPayment(vehicle.price, vehicle.price * 0.2, 60, rate.tin)
+                          return (
+                            <div key={key} className="col-span-2 flex justify-between">
+                              <span className="text-muted-foreground">{rate.label} · 60 meses:</span>
+                              <span className="font-medium">{new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(payment60)}/mes</span>
+                            </div>
+                          )
+                        })}
+                        <p className="col-span-2 text-[10px] text-muted-foreground mt-1">
+                          * Entrada 20%, sin comisión apertura. Valores orientativos.
+                        </p>
+                      </div>
                     </div>
                   )}
 
