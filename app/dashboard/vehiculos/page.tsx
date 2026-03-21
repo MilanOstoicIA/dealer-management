@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Car, Search, Filter, Camera, ChevronLeft, ChevronRight, ImageOff, Euro, Wrench, History, Upload, Info, ClipboardList, Gauge, Droplets, CircleDot, CalendarDays, Plus, Pencil, Trash2, X } from "lucide-react"
+import { Car, Search, Filter, Camera, ChevronLeft, ChevronRight, ImageOff, Euro, Wrench, History, Upload, Info, ClipboardList, Gauge, Droplets, CircleDot, CalendarDays, Plus, Pencil, Trash2, X, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -431,7 +431,36 @@ function VehicleFormDialog({ open, onClose, vehicle }: VehicleFormProps) {
   const isEdit = !!vehicle
   const [form, setForm] = useState(emptyForm)
   const [formUploading, setFormUploading] = useState(false)
+  const [lookupLoading, setLookupLoading] = useState(false)
+  const [lookupError, setLookupError] = useState("")
   const formFileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handlePlateLookup() {
+    if (!form.licensePlate.trim()) return
+    setLookupLoading(true)
+    setLookupError("")
+    try {
+      const { lookupByPlate } = await import("@/lib/vehicle-lookup")
+      const result = await lookupByPlate(form.licensePlate)
+      setForm((f) => ({
+        ...f,
+        brand: result.brand || f.brand,
+        model: result.model || f.model,
+        year: result.year || f.year,
+        fuelType: (result.fuelType as FuelType) || f.fuelType,
+        color: result.color || f.color,
+      }))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error desconocido"
+      if (msg === "API_NOT_CONFIGURED") {
+        setLookupError("Configura tu API key en Configuración > Integraciones")
+      } else {
+        setLookupError(msg)
+      }
+    } finally {
+      setLookupLoading(false)
+    }
+  }
 
   async function handleFormPhotoUpload(files: FileList | null) {
     if (!files || files.length === 0) return
@@ -536,7 +565,21 @@ function VehicleFormDialog({ open, onClose, vehicle }: VehicleFormProps) {
             </div>
             <div className="space-y-1.5">
               <Label>Matrícula *</Label>
-              <Input value={form.licensePlate} onChange={(e) => set("licensePlate", e.target.value)} placeholder="Ej: 1234 ABC" required />
+              <div className="flex gap-1.5">
+                <Input value={form.licensePlate} onChange={(e) => set("licensePlate", e.target.value)} placeholder="Ej: 1234 ABC" required className="flex-1" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0 h-9 w-9"
+                  title="Buscar datos por matrícula"
+                  disabled={!form.licensePlate.trim() || lookupLoading}
+                  onClick={handlePlateLookup}
+                >
+                  {lookupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                </Button>
+              </div>
+              {lookupError && <p className="text-[10px] text-amber-600">{lookupError}</p>}
             </div>
           </div>
 

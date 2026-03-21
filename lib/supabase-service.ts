@@ -659,6 +659,20 @@ export async function dbGetNextInvoiceNumber(): Promise<string> {
   return `${prefix}0001`
 }
 
+// Settings
+export async function dbGetSetting(key: string): Promise<string | null> {
+  const { data } = await supabase.from("settings").select("value").eq("key", key).single()
+  return data?.value || null
+}
+
+export async function dbSetSetting(key: string, value: string): Promise<void> {
+  const { error } = await supabase.from("settings").upsert(
+    { key, value, updated_at: new Date().toISOString() },
+    { onConflict: "key" }
+  )
+  if (error) throw error
+}
+
 // ─── Auth: verify password ─────────────────────────────────────────────────
 
 export async function dbVerifyPassword(email: string, password: string): Promise<User | null> {

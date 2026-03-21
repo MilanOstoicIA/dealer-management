@@ -50,6 +50,9 @@ export default function ConfiguracionPage() {
   const [ivaRate, setIvaRate] = useState("21")
   const [defaultTaxRegime, setDefaultTaxRegime] = useState("rebu")
   const [defaultCommission, setDefaultCommission] = useState("3")
+  const [matriculaApiKey, setMatriculaApiKey] = useState("")
+  const [apiKeySaving, setApiKeySaving] = useState(false)
+  const [apiKeySaved, setApiKeySaved] = useState(false)
   const [calendarUrl, setCalendarUrl] = useState("")
   const [saved, setSaved] = useState(false)
 
@@ -241,6 +244,55 @@ export default function ConfiguracionPage() {
                 <Badge variant="secondary" className="text-[10px]">
                   {t("settings.supabaseActivation")}
                 </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* API Integrations */}
+          <Card className="border-border/50">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Globe className="h-4 w-4" /> Integraciones API
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-xs text-muted-foreground font-medium">MatriculaAPI — Consulta por matrícula</label>
+                <p className="text-[10px] text-muted-foreground mb-1.5">
+                  Introduce tu API key de matriculaapi.com para buscar datos de vehículos por matrícula (~0,20€/consulta)
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    value={matriculaApiKey}
+                    onChange={(e) => { setMatriculaApiKey(e.target.value); setApiKeySaved(false) }}
+                    placeholder="Bearer token / API Key"
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!matriculaApiKey.trim() || apiKeySaving}
+                    onClick={async () => {
+                      setApiKeySaving(true)
+                      try {
+                        const { dbSetSetting } = await import("@/lib/supabase-service")
+                        await dbSetSetting("matricula_api_key", matriculaApiKey)
+                        setApiKeySaved(true)
+                      } catch {
+                        // silently fail
+                      } finally {
+                        setApiKeySaving(false)
+                      }
+                    }}
+                  >
+                    {apiKeySaved ? "Guardada" : "Guardar"}
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-medium">Integraciones futuras:</p>
+                <p>TecDoc (catálogo de piezas), AutoScout24 (publicación), VeriFactu (facturación electrónica)</p>
               </div>
             </CardContent>
           </Card>
