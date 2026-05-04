@@ -740,6 +740,16 @@ export async function dbVerifyPassword(email: string, password: string): Promise
   return userFromRow(data)
 }
 
+export async function dbGetUserByEmail(email: string): Promise<User | null> {
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .single()
+  if (error || !data) return null
+  return userFromRow(data)
+}
+
 // ─── Storage: upload vehicle photo ──────────────────────────────────────────
 
 export async function uploadVehiclePhoto(vehicleId: string, file: File): Promise<string> {

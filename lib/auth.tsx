@@ -183,23 +183,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loaded, user, pathname, router, store.customRoles])
 
   async function login(email: string, password: string): Promise<string | null> {
-    // Try Supabase first
+    // 1. Try Supabase password_hash match
     const dbUser = await dbVerifyPassword(email, password)
     if (dbUser) {
       setUser(dbUser)
       localStorage.setItem("dealerhub_user", JSON.stringify(dbUser))
       return null
     }
-    // Fallback to local mock passwords (for offline dev)
+
+    // 2. Mock password check (demo / offline mode)
     const expectedPassword = MOCK_PASSWORDS[email]
     if (expectedPassword && expectedPassword === password) {
-      const foundUser = store.users.find((u) => u.email === email)
+      // Try store first (already loaded)
+      let foundUser = store.users.find((u) => u.email === email)
+
+      // If store hasn't populated yet, fetch directly from Supabase
+      if (!foundUser) {
+        const { dbGetUserByEmail } = await import("@/lib/supabase-service")
+        foundUser = (await dbGetUserByEmail(email)) ?? undefined
+      }
+
       if (foundUser) {
         setUser(foundUser)
         localStorage.setItem("dealerhub_user", JSON.stringify(foundUser))
         return null
       }
     }
+
     return "Correo o contraseña incorrectos"
   }
 
