@@ -4,7 +4,7 @@ import { createContext, useContext, useReducer, useEffect, useState, useCallback
 import type {
   Vehicle, Client, Sale, Appointment, Expense, User, ForumPost,
   VehicleServiceRecord, ClientVehicleInfo, Tracking,
-  Supplier, TrackingHistoryEntry, Invoice,
+  Supplier, TrackingHistoryEntry, Invoice, CustomRole,
 } from "@/types"
 import {
   fetchAllData,
@@ -20,6 +20,7 @@ import {
   dbAddSupplier, dbUpdateSupplier, dbDeleteSupplier,
   dbAddTrackingHistory, dbFetchTrackingHistory,
   dbAddInvoice, dbUpdateInvoice, dbGetNextInvoiceNumber,
+  dbAddCustomRole, dbUpdateCustomRole, dbDeleteCustomRole,
 } from "@/lib/supabase-service"
 import { calculateInvoiceTax } from "@/lib/tax-utils"
 import { generateInvoiceHash } from "@/lib/verifactu"
@@ -45,6 +46,7 @@ interface StoreState {
   trackings: Tracking[]
   suppliers: Supplier[]
   invoices: Invoice[]
+  customRoles: CustomRole[]
 }
 
 const emptyState: StoreState = {
@@ -60,6 +62,7 @@ const emptyState: StoreState = {
   trackings: [],
   suppliers: [],
   invoices: [],
+  customRoles: [],
 }
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
@@ -95,6 +98,10 @@ type Action =
   | { type: "DELETE_SUPPLIER"; id: string }
   | { type: "ADD_INVOICE"; payload: Invoice }
   | { type: "UPDATE_INVOICE"; id: string; updates: Partial<Invoice> }
+  | { type: "SET_CUSTOM_ROLES"; payload: CustomRole[] }
+  | { type: "ADD_CUSTOM_ROLE"; payload: CustomRole }
+  | { type: "UPDATE_CUSTOM_ROLE"; id: string; updates: Partial<CustomRole> }
+  | { type: "DELETE_CUSTOM_ROLE"; id: string }
 
 // ─── Reducer ─────────────────────────────────────────────────────────────────
 
@@ -242,6 +249,16 @@ function reducer(state: StoreState, action: Action): StoreState {
     case "UPDATE_INVOICE":
       return { ...state, invoices: state.invoices.map((inv) => inv.id === action.id ? { ...inv, ...action.updates } : inv) }
 
+    // ── Custom roles ──
+    case "SET_CUSTOM_ROLES":
+      return { ...state, customRoles: action.payload }
+    case "ADD_CUSTOM_ROLE":
+      return { ...state, customRoles: [...state.customRoles, action.payload] }
+    case "UPDATE_CUSTOM_ROLE":
+      return { ...state, customRoles: state.customRoles.map((r) => r.id === action.id ? { ...r, ...action.updates } : r) }
+    case "DELETE_CUSTOM_ROLE":
+      return { ...state, customRoles: state.customRoles.filter((r) => r.id !== action.id) }
+
     default:
       return state
   }
@@ -278,6 +295,9 @@ interface StoreContextType extends StoreState {
   addInvoice: (inv: Invoice) => void
   updateInvoice: (id: string, updates: Partial<Invoice>) => void
   getSupplierById: (id: string) => Supplier | undefined
+  addCustomRole: (r: Omit<CustomRole, "id" | "createdAt">) => void
+  updateCustomRole: (id: string, updates: Partial<CustomRole>) => void
+  deleteCustomRole: (id: string) => void
   fetchTrackingHistory: (trackingId: string) => Promise<TrackingHistoryEntry[]>
   getUserById: (id: string) => User | undefined
   getVehicleById: (id: string) => Vehicle | undefined
@@ -599,6 +619,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dbUpdateInvoice(id, updates).catch((err) => console.error("DB updateInvoice error:", err))
   }, [])
 
+  // ── Custom role actions ──
+  const addCustomRole = useCallback((r: Omit<CustomRole, "id" | "createdAt">) => {
+    const newRole: CustomRole = { ...r, id: generateId(), createdAt: new Date().toISOString() }
+    dispatch({ type: "ADD_CUSTOM_ROLE", payload: newRole })
+    dbAddCustomRole(newRole).then((saved) => {
+      dispatch({ type: "DELETE_CUSTOM_ROLE", id: newRole.id })
+      dispatch({ type: "ADD_CUSTOM_ROLE", payload: saved })
+    }).catch((err) => console.error("DB addCustomRole error:", err))
+  }, [])
+
+  const updateCustomRole = useCallback((id: string, updates: Partial<CustomRole>) => {
+    dispatch({ type: "UPDATE_CUSTOM_ROLE", id, updates })
+    dbUpdateCustomRole(id, updates).catch((err) => console.error("DB updateCustomRole error:", err))
+  }, [])
+
+  const deleteCustomRole = useCallback((id: string) => {
+    dispatch({ type: "DELETE_CUSTOM_ROLE", id })
+    dbDeleteCustomRole(id).catch((err) => console.error("DB deleteCustomRole error:", err))
+  }, [])
+
   const getSupplierById = useCallback((id: string) => state.suppliers.find((s) => s.id === id), [state.suppliers])
 
   const fetchTrackingHistoryFn = useCallback(async (trackingId: string) => {
@@ -632,6 +672,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     addTracking, updateTracking, deleteTracking,
     addSupplier, updateSupplier, deleteSupplier, getSupplierById,
     addInvoice, updateInvoice,
+    addCustomRole, updateCustomRole, deleteCustomRole,
     fetchTrackingHistory: fetchTrackingHistoryFn,
     getUserById, getVehicleById, getClientById,
     getServiceRecordsByVehicle, getClientVehicleInfoFn, getDashboardStats,

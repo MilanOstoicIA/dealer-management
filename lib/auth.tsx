@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import type { User, UserRole } from "@/types"
+import type { User, UserRole, CustomRole, RolePermissions } from "@/types"
 import { useStore } from "@/lib/store"
 import { dbVerifyPassword } from "@/lib/supabase-service"
 
@@ -27,6 +27,8 @@ interface AuthContextType {
   hasAccess: (roles: UserRole[]) => boolean
   isViewer: boolean
   canEdit: (section: EditableSection) => boolean
+  canEditDashboard: () => boolean
+  getEffectiveRoutes: () => string[]
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -53,6 +55,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/equipo",
     "/dashboard/seguimientos",
     "/dashboard/proveedores",
+    "/dashboard/whatsapp",
     "/dashboard/publicacion",
     "/dashboard/foro",
     "/dashboard/configuracion",
@@ -65,6 +68,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/ventas",
     "/dashboard/seguimientos",
     "/dashboard/proveedores",
+    "/dashboard/whatsapp",
     "/dashboard/foro",
   ],
   mecanico: [
@@ -82,6 +86,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/vehiculos",
     "/dashboard/seguimientos",
     "/dashboard/proveedores",
+    "/dashboard/whatsapp",
     "/dashboard/foro",
   ],
   viewer: [
@@ -111,6 +116,25 @@ export function getRoleLabel(role: UserRole): string {
   return ROLE_LABELS[role]
 }
 
+// Map custom role permissions to accessible routes
+function permissionsToRoutes(p: RolePermissions): string[] {
+  const routes = ["/dashboard"] // always accessible
+  if (p.view_vehiculos)    routes.push("/dashboard/vehiculos")
+  if (p.view_clientes)     routes.push("/dashboard/clientes")
+  if (p.view_citas)        routes.push("/dashboard/citas")
+  if (p.view_ventas)       routes.push("/dashboard/ventas")
+  if (p.view_facturacion)  routes.push("/dashboard/facturacion")
+  if (p.view_contabilidad) routes.push("/dashboard/contabilidad")
+  if (p.view_equipo)       routes.push("/dashboard/equipo")
+  if (p.view_foro)         routes.push("/dashboard/foro")
+  if (p.view_proveedores)  routes.push("/dashboard/proveedores")
+  if (p.view_seguimientos) routes.push("/dashboard/seguimientos")
+  if (p.view_publicacion)  routes.push("/dashboard/publicacion")
+  if (p.view_configuracion)routes.push("/dashboard/configuracion")
+  if (p.view_whatsapp)     routes.push("/dashboard/whatsapp")
+  return routes
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -131,6 +155,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoaded(true)
   }, [])
 
+  // Effective routes for the current user
+  function getEffectiveRoutes(): string[] {
+    if (!user) return []
+    if (user.customRoleId) {
+      const customRole = store.customRoles.find((r: CustomRole) => r.id === user.customRoleId)
+      if (customRole) return permissionsToRoutes(customRole.permissions)
+    }
+    return ROLE_ACCESS[user.role] ?? []
+  }
+
   // Route protection
   useEffect(() => {
     if (!loaded) return
@@ -140,12 +174,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
     if (user && isDashboard) {
-      const allowed = ROLE_ACCESS[user.role]
+      const allowed = getEffectiveRoutes()
       if (!allowed.includes(pathname)) {
         router.replace("/dashboard")
       }
     }
-  }, [loaded, user, pathname, router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, user, pathname, router, store.customRoles])
 
   async function login(email: string, password: string): Promise<string | null> {
     // Try Supabase first
@@ -192,12 +227,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function canEdit(section: EditableSection): boolean {
     if (!user) return false
+    // Custom role overrides fixed role
+    if (user.customRoleId) {
+      const customRole = store.customRoles.find((r: CustomRole) => r.id === user.customRoleId)
+      if (customRole) {
+        const key = `edit_${section}` as keyof RolePermissions
+        return (customRole.permissions[key] as boolean) ?? false
+      }
+    }
     if (isViewer) return false
     return EDIT_PERMISSIONS[section].includes(user.role)
   }
 
+  function canEditDashboard(): boolean {
+    if (!user) return false
+    if (user.role === "admin") return true
+    if (user.customRoleId) {
+      const customRole = store.customRoles.find((r: CustomRole) => r.id === user.customRoleId)
+      return customRole?.permissions.dashboard_editor ?? false
+    }
+    return false
+  }
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, hasAccess, isViewer, canEdit }}>
+    <AuthContext.Provider value={{ user, login, logout, hasAccess, isViewer, canEdit, canEditDashboard, getEffectiveRoutes }}>
       {children}
     </AuthContext.Provider>
   )

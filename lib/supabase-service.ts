@@ -2,7 +2,8 @@ import { supabase } from "./supabase"
 import type {
   Vehicle, Client, Sale, Appointment, Expense, User, ForumPost,
   VehicleServiceRecord, ClientVehicleInfo, WorkItem, Tracking,
-  Supplier, TrackingHistoryEntry, Invoice,
+  Supplier, TrackingHistoryEntry, Invoice, CustomRole, RolePermissions,
+  WhatsAppContact, WhatsAppMessage,
 } from "@/types"
 
 // ─── Helpers: snake_case <-> camelCase mappers ─────────────────────────────
@@ -83,8 +84,20 @@ function userFromRow(r: Record<string, unknown>): User {
     name: r.name as string,
     email: r.email as string,
     role: r.role as User["role"],
+    customRoleId: (r.custom_role_id as string) || undefined,
     avatarUrl: (r.avatar_url as string) || undefined,
     phone: (r.phone as string) || undefined,
+    createdAt: r.created_at as string,
+  }
+}
+
+function customRoleFromRow(r: Record<string, unknown>): CustomRole {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    description: (r.description as string) || undefined,
+    color: (r.color as string) || "#6366f1",
+    permissions: (r.permissions as RolePermissions),
     createdAt: r.created_at as string,
   }
 }
@@ -324,6 +337,7 @@ export interface SupabaseState {
   trackings: Tracking[]
   suppliers: Supplier[]
   invoices: Invoice[]
+  customRoles: CustomRole[]
 }
 
 export async function fetchAllData(): Promise<SupabaseState> {
@@ -340,6 +354,7 @@ export async function fetchAllData(): Promise<SupabaseState> {
     { data: trackingsData },
     { data: suppliersData },
     { data: invoicesData },
+    { data: customRolesData },
   ] = await Promise.all([
     supabase.from("users").select("*"),
     supabase.from("vehicles").select("*"),
@@ -353,6 +368,7 @@ export async function fetchAllData(): Promise<SupabaseState> {
     supabase.from("trackings").select("*"),
     supabase.from("suppliers").select("*"),
     supabase.from("invoices").select("*").order("issued_date", { ascending: false }),
+    supabase.from("custom_roles").select("*").order("created_at", { ascending: true }),
   ])
 
   return {
@@ -368,6 +384,7 @@ export async function fetchAllData(): Promise<SupabaseState> {
     trackings: (trackingsData || []).map(trackingFromRow),
     suppliers: (suppliersData || []).map(supplierFromRow),
     invoices: (invoicesData || []).map(invoiceFromRow),
+    customRoles: (customRolesData || []).map(customRoleFromRow),
   }
 }
 
@@ -487,7 +504,38 @@ export async function dbUpdateUser(id: string, updates: Partial<User>) {
   if (updates.role !== undefined) row.role = updates.role
   if (updates.phone !== undefined) row.phone = updates.phone
   if (updates.avatarUrl !== undefined) row.avatar_url = updates.avatarUrl
+  if ("customRoleId" in updates) row.custom_role_id = updates.customRoleId || null
   const { error } = await supabase.from("users").update(row).eq("id", id)
+  if (error) throw error
+}
+
+// ─── Custom roles CRUD ───────────────────────────────────────────────────────
+
+export async function dbAddCustomRole(role: CustomRole): Promise<CustomRole> {
+  const { data, error } = await supabase.from("custom_roles").insert({
+    id: role.id,
+    name: role.name,
+    description: role.description || null,
+    color: role.color,
+    permissions: role.permissions,
+    created_at: role.createdAt,
+  }).select().single()
+  if (error) throw error
+  return customRoleFromRow(data)
+}
+
+export async function dbUpdateCustomRole(id: string, updates: Partial<CustomRole>): Promise<void> {
+  const row: Record<string, unknown> = {}
+  if (updates.name !== undefined) row.name = updates.name
+  if (updates.description !== undefined) row.description = updates.description || null
+  if (updates.color !== undefined) row.color = updates.color
+  if (updates.permissions !== undefined) row.permissions = updates.permissions
+  const { error } = await supabase.from("custom_roles").update(row).eq("id", id)
+  if (error) throw error
+}
+
+export async function dbDeleteCustomRole(id: string): Promise<void> {
+  const { error } = await supabase.from("custom_roles").delete().eq("id", id)
   if (error) throw error
 }
 
@@ -717,4 +765,117 @@ export async function deleteVehiclePhoto(url: string): Promise<void> {
   if (!match) return
   const { error } = await supabase.storage.from("vehicle-photos").remove([match[1]])
   if (error) throw error
+}
+
+// ─── WhatsApp ─────────────────────────────────────────────────────────────────
+
+function contactFromRow(r: Record<string, unknown>): WhatsAppContact {
+  return {
+    id: r.id as string,
+    phone: r.phone as string,
+    name: (r.name as string) || '',
+    clientId: (r.client_id as string) || undefined,
+    lastMessage: (r.last_message as string) || undefined,
+    lastMessageAt: (r.last_message_at as string) || undefined,
+    unreadCount: (r.unread_count as number) ?? 0,
+    createdAt: r.created_at as string,
+  }
+}
+
+function messageFromRow(r: Record<string, unknown>): WhatsAppMessage {
+  return {
+    id: r.id as string,
+    contactId: r.contact_id as string,
+    direction: r.direction as WhatsAppMessage['direction'],
+    body: (r.body as string) || '',
+    mediaUrl: (r.media_url as string) || undefined,
+    sentAt: r.sent_at as string,
+    status: (r.status as WhatsAppMessage['status']) || 'sent',
+  }
+}
+
+export async function dbGetWhatsAppContacts(): Promise<WhatsAppContact[]> {
+  const { data, error } = await supabase
+    .from('whatsapp_contacts')
+    .select('*')
+    .order('last_message_at', { ascending: false, nullsFirst: false })
+  if (error) throw error
+  return (data ?? []).map(contactFromRow)
+}
+
+export async function dbGetWhatsAppMessages(contactId: string): Promise<WhatsAppMessage[]> {
+  const { data, error } = await supabase
+    .from('whatsapp_messages')
+    .select('*')
+    .eq('contact_id', contactId)
+    .order('sent_at', { ascending: true })
+  if (error) throw error
+  return (data ?? []).map(messageFromRow)
+}
+
+export async function dbUpsertWhatsAppContact(phone: string, name: string, clientId?: string): Promise<WhatsAppContact> {
+  const { data, error } = await supabase
+    .from('whatsapp_contacts')
+    .upsert(
+      { phone, name: name || phone, ...(clientId ? { client_id: clientId } : {}) },
+      { onConflict: 'phone', ignoreDuplicates: false }
+    )
+    .select()
+    .single()
+  if (error) throw error
+  return contactFromRow(data)
+}
+
+export async function dbInsertWhatsAppMessage(
+  contactId: string,
+  direction: 'in' | 'out',
+  body: string,
+  mediaUrl?: string,
+): Promise<WhatsAppMessage> {
+  const { data, error } = await supabase
+    .from('whatsapp_messages')
+    .insert({ contact_id: contactId, direction, body, media_url: mediaUrl ?? null })
+    .select()
+    .single()
+  if (error) throw error
+
+  // Update contact's last_message / unread_count
+  const updatePayload: Record<string, unknown> = {
+    last_message: body.slice(0, 120),
+    last_message_at: new Date().toISOString(),
+  }
+  if (direction === 'in') {
+    // Increment unread_count via RPC-style raw SQL isn't available without a function,
+    // so we do a select + update instead
+    const { data: contact } = await supabase
+      .from('whatsapp_contacts')
+      .select('unread_count')
+      .eq('id', contactId)
+      .single()
+    updatePayload.unread_count = ((contact?.unread_count as number) ?? 0) + 1
+  }
+
+  await supabase.from('whatsapp_contacts').update(updatePayload).eq('id', contactId)
+
+  return messageFromRow(data)
+}
+
+export async function dbMarkWhatsAppContactRead(contactId: string): Promise<void> {
+  await supabase
+    .from('whatsapp_contacts')
+    .update({ unread_count: 0 })
+    .eq('id', contactId)
+}
+
+export async function dbGetWhatsAppContactByPhone(phone: string): Promise<WhatsAppContact | null> {
+  const { data } = await supabase
+    .from('whatsapp_contacts')
+    .select('*')
+    .eq('phone', phone)
+    .single()
+  return data ? contactFromRow(data) : null
+}
+
+export async function dbAutoLinkWhatsAppContact(contactId: string, clientId: string): Promise<void> {
+  await supabase.from('whatsapp_contacts').update({ client_id: clientId }).eq('id', contactId)
 }

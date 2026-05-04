@@ -7,10 +7,63 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  customRoleId?: string;   // si está definido, usa permisos del CustomRole
   avatarUrl?: string;
   phone?: string;
   createdAt: string;
 }
+
+// ─── Roles personalizados ─────────────────────────────────────────────────────
+
+export interface RolePermissions {
+  // Vista de módulos
+  view_vehiculos: boolean;
+  view_clientes: boolean;
+  view_citas: boolean;
+  view_ventas: boolean;
+  view_facturacion: boolean;
+  view_contabilidad: boolean;
+  view_equipo: boolean;
+  view_foro: boolean;
+  view_proveedores: boolean;
+  view_seguimientos: boolean;
+  view_publicacion: boolean;
+  view_configuracion: boolean;
+  view_whatsapp: boolean;
+  // Edición
+  edit_vehiculos: boolean;
+  edit_clientes: boolean;
+  edit_citas: boolean;
+  edit_ventas: boolean;
+  edit_facturacion: boolean;
+  edit_contabilidad: boolean;
+  edit_equipo: boolean;
+  edit_proveedores: boolean;
+  edit_seguimientos: boolean;
+  // Especiales
+  dashboard_editor: boolean;
+  export_data: boolean;
+}
+
+export interface CustomRole {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;         // hex color (ej: "#3b82f6")
+  permissions: RolePermissions;
+  createdAt: string;
+}
+
+export const DEFAULT_PERMISSIONS: RolePermissions = {
+  view_vehiculos: false, view_clientes: false, view_citas: false, view_ventas: false,
+  view_facturacion: false, view_contabilidad: false, view_equipo: false, view_foro: false,
+  view_proveedores: false, view_seguimientos: false, view_publicacion: false, view_configuracion: false,
+  view_whatsapp: false,
+  edit_vehiculos: false, edit_clientes: false, edit_citas: false, edit_ventas: false,
+  edit_facturacion: false, edit_contabilidad: false, edit_equipo: false, edit_proveedores: false,
+  edit_seguimientos: false,
+  dashboard_editor: false, export_data: false,
+};
 
 // ─── Vehículos ────────────────────────────────────────────────────────────────
 
@@ -314,4 +367,27 @@ export interface DashboardStats {
   pendingAppointments: number;
   monthlySalesRevenue: number;
   monthlyCommissions: number;
+}
+
+// ─── WhatsApp Business ────────────────────────────────────────────────────────
+
+export interface WhatsAppContact {
+  id: string;
+  phone: string;            // E.164 format, ej: "34612345678"
+  name: string;
+  clientId?: string;        // vinculado a cliente si coincide phone
+  lastMessage?: string;
+  lastMessageAt?: string;   // ISO date
+  unreadCount: number;
+  createdAt: string;
+}
+
+export interface WhatsAppMessage {
+  id: string;
+  contactId: string;
+  direction: "in" | "out";
+  body: string;
+  mediaUrl?: string;
+  sentAt: string;           // ISO date
+  status: "sent" | "delivered" | "read" | "failed";
 }

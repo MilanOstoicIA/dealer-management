@@ -19,6 +19,7 @@ import {
   ClipboardCheck,
   Building2,
   Globe,
+  MessageCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -36,6 +37,7 @@ const allNavItems = [
   { href: "/dashboard/ventas", labelKey: "nav.sales", icon: ShoppingCart, section: "principal" },
   { href: "/dashboard/seguimientos", labelKey: "nav.tracking", icon: ClipboardCheck, section: "principal" },
   { href: "/dashboard/proveedores", labelKey: "nav.suppliers", icon: Building2, section: "principal" },
+  { href: "/dashboard/whatsapp", labelKey: "nav.whatsapp", icon: MessageCircle, section: "principal" },
   { href: "/dashboard/publicacion", labelKey: "nav.publication", icon: Globe, section: "admin" },
   { href: "/dashboard/contabilidad", labelKey: "nav.accounting", icon: BarChart3, section: "admin" },
   { href: "/dashboard/facturacion", labelKey: "nav.invoicing", icon: Receipt, section: "admin" },
@@ -50,12 +52,12 @@ function getInitials(name: string): string {
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
-  const { user, logout, isViewer } = useAuth()
+  const { user, logout, isViewer, getEffectiveRoutes } = useAuth()
   const { t } = useI18n()
 
   if (!user) return null
 
-  const allowedRoutes = ROLE_ACCESS[user.role]
+  const allowedRoutes = getEffectiveRoutes()
   const visibleItems = allNavItems.filter((item) => allowedRoutes.includes(item.href))
   const principalItems = visibleItems.filter((item) => item.section === "principal")
   const adminItems = visibleItems.filter((item) => item.section === "admin")

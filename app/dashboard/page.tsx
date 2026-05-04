@@ -1,301 +1,160 @@
-"use client"
+'use client'
 
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import {
-  Car,
-  Users,
-  CalendarDays,
-  TrendingUp,
-  Euro,
-  AlertCircle,
-  ArrowRight,
-  CheckCircle,
-  Clock,
-  ShoppingCart,
-} from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { useStore } from "@/lib/store"
+import dynamic from 'next/dynamic'
+import { useMemo } from 'react'
+import { useStore } from '@/lib/store'
+import { useAuth } from '@/lib/auth'
+import type { DashboardData } from '@/components/dashboard/dashboard-grid'
 
-const serviceTypeLabels: Record<string, string> = {
-  revision_general: "Revisión general",
-  cambio_aceite: "Cambio de aceite",
-  frenos: "Frenos",
-  neumaticos: "Neumáticos",
-  aire_acondicionado: "Aire acondicionado",
-  carroceria: "Carrocería",
-  diagnostico: "Diagnóstico",
-  otro: "Otro",
-}
-
-const appointmentStatusConfig: Record<string, { label: string; className: string }> = {
-  pendiente: { label: "Pendiente", className: "bg-yellow-500/15 text-yellow-600 border-yellow-500/20" },
-  en_progreso: { label: "En progreso", className: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
-  completada: { label: "Completada", className: "bg-green-500/15 text-green-600 border-green-500/20" },
-  cancelada: { label: "Cancelada", className: "bg-destructive/15 text-destructive border-destructive/20" },
-}
-
-const saleStatusConfig: Record<string, { label: string; className: string }> = {
-  en_proceso: { label: "En proceso", className: "bg-yellow-500/15 text-yellow-600 border-yellow-500/20" },
-  completada: { label: "Completada", className: "bg-green-500/15 text-green-600 border-green-500/20" },
-  cancelada: { label: "Cancelada", className: "bg-destructive/15 text-destructive border-destructive/20" },
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(amount)
-}
+// Avoid SSR to prevent react-grid-layout hydration mismatch
+const DashboardGrid = dynamic(
+  () => import('@/components/dashboard/dashboard-grid').then(m => m.DashboardGrid),
+  { ssr: false },
+)
 
 export default function DashboardPage() {
-  const { vehicles, sales, appointments, getVehicleById, getClientById, getUserById, getDashboardStats } = useStore()
-  const stats = getDashboardStats()
-  const pendingAppointments = appointments
-    .filter((a) => a.status === "pendiente")
-    .slice(0, 5)
-  const recentSales = sales.slice(-5).reverse()
-  const vehiclesInShop = vehicles.filter((v) => v.status === "en_taller")
+  const {
+    vehicles, sales, appointments, clients, forumPosts, trackings,
+    users, expenses, getClientById, getVehicleById, getUserById,
+  } = useStore()
+  const { canEditDashboard } = useAuth()
 
-  return (
-    <div className="p-4 md:p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Resumen general del concesionario
-        </p>
-      </div>
+  const data = useMemo<DashboardData>(() => {
+    const now = new Date()
+    const currentMonth = now.toISOString().slice(0, 7)
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Link href="/dashboard/vehiculos">
-          <Card className="border-border/50 cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Vehículos totales
-                </p>
-                <Car className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="mt-2 text-2xl font-bold tracking-tight">{stats.totalVehicles}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {stats.availableVehicles} disponibles · {stats.vehiclesSold} vendidos
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
+    // ── Stat values ──────────────────────────────────────────────────────────
+    const completedMonthly = sales.filter(s => s.saleDate.startsWith(currentMonth) && s.status === 'completada')
 
-        <Link href="/dashboard/clientes">
-          <Card className="border-border/50 cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Clientes
-                </p>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="mt-2 text-2xl font-bold tracking-tight">{stats.totalClients}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Clientes registrados
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
+    const availableVehicles  = vehicles.filter(v => v.status === 'disponible').length
+    const totalVehicles      = vehicles.length
+    const vehiclesSold       = vehicles.filter(v => v.status === 'vendido').length
+    const totalClients       = clients.length
+    const pendingAppointments = appointments.filter(a => a.status === 'pendiente' || a.status === 'en_progreso').length
+    const monthlySalesRevenue = completedMonthly.reduce((s, v) => s + v.salePrice, 0)
+    const monthlyCommissions  = completedMonthly.reduce((s, v) => s + v.commission, 0)
+    const vehiclesInWorkshop  = vehicles.filter(v => v.status === 'en_taller').length
+    const vehiclesReserved    = vehicles.filter(v => v.status === 'reservado').length
+    const soldThisMonth       = completedMonthly.length
 
-        <Link href="/dashboard/citas">
-          <Card className="border-border/50 cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Citas pendientes
-                </p>
-                <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="mt-2 text-2xl font-bold tracking-tight">{stats.pendingAppointments}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {vehiclesInShop.length} vehículos en taller
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
+    // ── Upcoming appointments ────────────────────────────────────────────────
+    const upcomingAppointments = appointments
+      .filter(a => a.status === 'pendiente' || a.status === 'en_progreso')
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(0, 10)
+      .map(a => ({
+        id: a.id,
+        clientName: getClientById(a.clientId)?.name ?? 'Desconocido',
+        vehicleBrand: getVehicleById(a.vehicleId)?.brand ?? '',
+        vehicleModel: getVehicleById(a.vehicleId)?.model ?? '',
+        date: a.date,
+        serviceType: a.serviceType,
+        status: a.status,
+      }))
 
-        <Link href="/dashboard/ventas">
-          <Card className="border-border/50 cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Ventas del mes
-                </p>
-                <Euro className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="mt-2 text-2xl font-bold tracking-tight">
-                {formatCurrency(stats.monthlySalesRevenue)}
-              </p>
-              <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" />
-                {formatCurrency(stats.monthlyCommissions)} en comisiones
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
+    // ── Recent sales ─────────────────────────────────────────────────────────
+    const recentSales = [...sales]
+      .sort((a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime())
+      .slice(0, 8)
+      .map(s => ({
+        id: s.id,
+        vehicleBrand: getVehicleById(s.vehicleId)?.brand ?? '',
+        vehicleModel: getVehicleById(s.vehicleId)?.model ?? '',
+        clientName: getClientById(s.clientId)?.name ?? '',
+        sellerName: getUserById(s.sellerId)?.name ?? '',
+        salePrice: s.salePrice,
+        status: s.status,
+        saleDate: s.saleDate,
+      }))
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Próximas citas */}
-        <Card className="border-border/50">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold">Próximas citas</CardTitle>
-              <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20 text-xs">
-                {pendingAppointments.length} pendientes
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border/50">
-              {pendingAppointments.map((appt) => {
-                const client = getClientById(appt.clientId)
-                const vehicle = getVehicleById(appt.vehicleId)
-                const cfg = appointmentStatusConfig[appt.status]
-                const date = new Date(appt.date)
-                return (
-                  <Link key={appt.id} href="/dashboard/citas" className="flex items-center justify-between px-6 py-3.5 cursor-pointer hover:bg-muted/50 transition-colors">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">{client?.name}</p>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {vehicle?.brand} {vehicle?.model} · {serviceTypeLabels[appt.serviceType]}
-                      </p>
-                    </div>
-                    <div className="ml-4 flex flex-col items-end gap-1.5 shrink-0">
-                      <span className="text-xs font-medium">
-                        {date.toLocaleDateString("es-ES", { day: "numeric", month: "short" })} · {date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                      <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium ${cfg.className}`}>
-                        {cfg.label}
-                      </span>
-                    </div>
-                  </Link>
-                )
-              })}
-              {pendingAppointments.length === 0 && (
-                <div className="px-6 py-8 text-center text-sm text-muted-foreground">
-                  No hay citas pendientes
-                </div>
-              )}
-            </div>
-            <div className="border-t border-border/50">
-              <Link href="/dashboard/citas" className="flex items-center justify-center gap-1 px-6 py-3 text-xs text-primary hover:bg-muted/30 font-medium">
-                Ver todas las citas
-                <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+    // ── Forum leads ──────────────────────────────────────────────────────────
+    const forumLeads = [...forumPosts]
+      .filter(p => p.status === 'nuevo' || p.status === 'contactado')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 8)
+      .map(p => ({
+        id: p.id,
+        authorName: p.authorName,
+        vehicleBrand: p.vehicleBrand,
+        vehicleModel: p.vehicleModel,
+        askingPrice: p.askingPrice,
+        status: p.status,
+        createdAt: p.createdAt,
+      }))
 
-        {/* Últimas ventas */}
-        <Card className="border-border/50">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold">Últimas ventas</CardTitle>
-              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-xs">
-                {sales.filter((s) => s.status === "completada").length} completadas
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border/50">
-              {recentSales.map((sale) => {
-                const client = getClientById(sale.clientId)
-                const vehicle = getVehicleById(sale.vehicleId)
-                const seller = getUserById(sale.sellerId)
-                const cfg = saleStatusConfig[sale.status]
-                return (
-                  <Link key={sale.id} href="/dashboard/ventas" className="flex items-center justify-between px-6 py-3.5 cursor-pointer hover:bg-muted/50 transition-colors">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">
-                          {vehicle?.brand} {vehicle?.model}
-                        </p>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {client?.name} · {seller?.name}
-                      </p>
-                    </div>
-                    <div className="ml-4 flex flex-col items-end gap-1.5 shrink-0">
-                      <span className="text-sm font-semibold">{formatCurrency(sale.salePrice)}</span>
-                      <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium ${cfg.className}`}>
-                        {cfg.label}
-                      </span>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
-            <div className="border-t border-border/50">
-              <Link href="/dashboard/ventas" className="flex items-center justify-center gap-1 px-6 py-3 text-xs text-primary hover:bg-muted/30 font-medium">
-                Ver todas las ventas
-                <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+    // ── Urgent trackings ─────────────────────────────────────────────────────
+    const urgentTrackings = trackings
+      .filter(t => (t.priority === 'urgente' || t.priority === 'alta') && t.status !== 'completado' && t.status !== 'cancelado')
+      .sort((a, b) => {
+        const order = { urgente: 0, alta: 1, media: 2, baja: 3 }
+        return (order[a.priority as keyof typeof order] ?? 4) - (order[b.priority as keyof typeof order] ?? 4)
+      })
+      .slice(0, 8)
+      .map(t => ({
+        id: t.id,
+        title: t.title,
+        priority: t.priority,
+        category: t.category,
+        dueDate: t.dueDate,
+        status: t.status,
+      }))
 
-      {/* Quick stats row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Link href="/dashboard/citas">
-          <Card className="border-border/50 bg-primary/5 cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/15">
-                  <Clock className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">En taller</p>
-                  <p className="text-xl font-bold">{vehiclesInShop.length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+    // ── Monthly revenue (last 6 months) ──────────────────────────────────────
+    const monthlyRevenue = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const m = d.toISOString().slice(0, 7)
+      const label = d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' })
+      const ingresos = sales
+        .filter(s => s.status === 'completada' && s.saleDate.startsWith(m))
+        .reduce((sum, s) => sum + s.salePrice, 0)
+      const gastos = expenses
+        .filter(e => e.date.startsWith(m))
+        .reduce((sum, e) => sum + e.amount, 0)
+      return { month: label, ingresos, gastos }
+    }).reverse()
 
-        <Link href="/dashboard/ventas">
-          <Card className="border-border/50 bg-green-500/5 cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/15">
-                  <ShoppingCart className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Ventas en proceso</p>
-                  <p className="text-xl font-bold">
-                    {sales.filter((s) => s.status === "en_proceso").length}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+    // ── Vehicles by status ────────────────────────────────────────────────────
+    const vehiclesByStatus = [
+      { name: 'Disponible', value: vehicles.filter(v => v.status === 'disponible').length, color: '#22c55e' },
+      { name: 'Reservado',  value: vehicles.filter(v => v.status === 'reservado').length,  color: '#f59e0b' },
+      { name: 'Vendido',    value: vehicles.filter(v => v.status === 'vendido').length,    color: '#3b82f6' },
+      { name: 'En taller',  value: vehicles.filter(v => v.status === 'en_taller').length,  color: '#ef4444' },
+    ].filter(s => s.value > 0)
 
-        <Link href="/dashboard/vehiculos">
-          <Card className="border-border/50 bg-yellow-500/5 cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-500/15">
-                  <AlertCircle className="h-5 w-5 text-yellow-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Reservados</p>
-                  <p className="text-xl font-bold">
-                    {vehicles.filter((v) => v.status === "reservado").length}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
-    </div>
-  )
+    // ── Sales by seller ───────────────────────────────────────────────────────
+    const salesBySeller = users
+      .filter(u => u.role === 'vendedor')
+      .map(u => {
+        const sellerSales = sales.filter(s => s.sellerId === u.id && s.status === 'completada')
+        return {
+          name: u.name.split(' ')[0],
+          ventas: sellerSales.length,
+          ingresos: sellerSales.reduce((sum, s) => sum + s.salePrice, 0),
+        }
+      })
+      .filter(s => s.ventas > 0)
+      .sort((a, b) => b.ventas - a.ventas)
+
+    return {
+      availableVehicles,
+      totalVehicles,
+      vehiclesSold,
+      totalClients,
+      pendingAppointments,
+      monthlySalesRevenue,
+      monthlyCommissions,
+      vehiclesInWorkshop,
+      vehiclesReserved,
+      soldThisMonth,
+      upcomingAppointments,
+      recentSales,
+      forumLeads,
+      urgentTrackings,
+      monthlyRevenue,
+      vehiclesByStatus,
+      salesBySeller,
+    }
+  }, [vehicles, sales, appointments, clients, forumPosts, trackings, users, expenses, getClientById, getVehicleById, getUserById])
+
+  return <DashboardGrid data={data} isAdmin={canEditDashboard()} />
 }
