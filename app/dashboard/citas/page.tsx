@@ -17,8 +17,6 @@ import {
   Camera,
   CheckCircle2,
   Plus,
-  Pencil,
-  Trash2,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -42,6 +40,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/auth"
 import type { Appointment, AppointmentStatus, ServiceType } from "@/types"
+import { AppointmentsCalendar } from "@/components/dashboard/appointments-calendar"
+import { CalendarRange } from "lucide-react"
 
 const serviceTypeLabels: Record<string, string> = {
   revision_general: "Revisión general",
@@ -236,7 +236,7 @@ export default function CitasPage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("todos")
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
-  const [view, setView] = useState<"calendar" | "list">("calendar")
+  const [view, setView] = useState<"calendar" | "agenda" | "list">("calendar")
   const [formOpen, setFormOpen] = useState(false)
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
 
@@ -337,6 +337,15 @@ export default function CitasPage() {
               Calendario
             </Button>
             <Button
+              variant={view === "agenda" ? "default" : "ghost"}
+              size="sm"
+              className="h-8 px-3"
+              onClick={() => setView("agenda")}
+            >
+              <CalendarRange className="h-4 w-4 mr-1.5" />
+              Semana
+            </Button>
+            <Button
               variant={view === "list" ? "default" : "ghost"}
               size="sm"
               className="h-8 px-3"
@@ -385,6 +394,15 @@ export default function CitasPage() {
           </CardContent>
         </Card>
       </div>
+
+      {view === "agenda" && (
+        <AppointmentsCalendar
+          appointments={appointments}
+          getClientName={id => getClientById(id)?.name ?? 'Sin cliente'}
+          onSelectEvent={appt => setSelectedAppointment(appt)}
+          defaultView="week"
+        />
+      )}
 
       {view === "calendar" ? (
         /* ========== CALENDAR VIEW ========== */
@@ -545,7 +563,7 @@ export default function CitasPage() {
             })}
           </div>
         </div>
-      ) : (
+      ) : view === "list" ? (
         /* ========== LIST VIEW ========== */
         <>
           {/* Filters */}
@@ -629,7 +647,7 @@ export default function CitasPage() {
             )}
           </div>
         </>
-      )}
+      ) : null}
 
       {/* Appointment Detail Dialog */}
       <Dialog open={!!selectedAppointment} onOpenChange={() => setSelectedAppointment(null)}>

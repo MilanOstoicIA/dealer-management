@@ -283,6 +283,7 @@ interface StoreContextType extends StoreState {
   addExpense: (e: Omit<Expense, "id">) => void
   deleteExpense: (id: string) => void
   addUser: (u: Omit<User, "id" | "createdAt">) => void
+  addUserDirect: (user: User) => void
   updateUser: (id: string, updates: Partial<User>) => void
   addForumPost: (p: Omit<ForumPost, "id" | "createdAt">) => void
   updateForumPost: (id: string, updates: Partial<ForumPost>) => void
@@ -541,6 +542,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dbAddUser(newUser).catch((err) => console.error("DB addUser error:", err))
   }, [])
 
+  const addUserDirect = useCallback((user: User) => {
+    dispatch({ type: "ADD_USER", payload: user })
+  }, [])
+
   const updateUser = useCallback((id: string, updates: Partial<User>) => {
     dispatch({ type: "UPDATE_USER", id, updates })
     dbUpdateUser(id, updates).catch((err) => console.error("DB updateUser error:", err))
@@ -667,7 +672,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     createSale, updateSale, completeSale, cancelSale,
     addAppointment, updateAppointment, closeAppointment,
     addExpense, deleteExpense,
-    addUser, updateUser,
+    addUser, addUserDirect, updateUser,
     addForumPost, updateForumPost,
     addTracking, updateTracking, deleteTracking,
     addSupplier, updateSupplier, deleteSupplier, getSupplierById,

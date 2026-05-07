@@ -21,6 +21,7 @@ import { supabase } from '@/lib/supabase'
 import {
   dbGetWhatsAppContacts, dbGetWhatsAppMessages,
   dbInsertWhatsAppMessage, dbMarkWhatsAppContactRead,
+  dbGetSetting, dbSetSetting,
 } from '@/lib/supabase-service'
 import type { WhatsAppContact, WhatsAppMessage } from '@/types'
 import { toast } from 'sonner'
@@ -239,7 +240,7 @@ interface WhatsAppClientProps {
 export function WhatsAppClient({ clients }: WhatsAppClientProps) {
   const router = useRouter()
 
-  // Evolution API config (stored in localStorage)
+  // Evolution API config (stored in Supabase settings)
   const [evolutionUrl, setEvolutionUrl] = useState('')
   const [evolutionKey, setEvolutionKey] = useState('')
   const [showSetup, setShowSetup] = useState(false)
@@ -259,13 +260,18 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Load config from localStorage
+  // Load config from Supabase settings
   useEffect(() => {
-    const url = localStorage.getItem('dealerhub_evolution_url') ?? ''
-    const key = localStorage.getItem('dealerhub_evolution_key') ?? ''
-    setEvolutionUrl(url)
-    setEvolutionKey(key)
-    setConnected(!!url)
+    Promise.all([
+      dbGetSetting('evolution_url'),
+      dbGetSetting('evolution_key'),
+    ]).then(([url, key]) => {
+      const u = url ?? ''
+      const k = key ?? ''
+      setEvolutionUrl(u)
+      setEvolutionKey(k)
+      setConnected(!!u)
+    })
   }, [])
 
   // Load contacts
@@ -352,9 +358,11 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
     !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search)
   )
 
-  function handleSaveConfig(url: string, key: string) {
-    localStorage.setItem('dealerhub_evolution_url', url)
-    localStorage.setItem('dealerhub_evolution_key', key)
+  async function handleSaveConfig(url: string, key: string) {
+    await Promise.all([
+      dbSetSetting('evolution_url', url),
+      dbSetSetting('evolution_key', key),
+    ])
     setEvolutionUrl(url)
     setEvolutionKey(key)
     setConnected(!!url)

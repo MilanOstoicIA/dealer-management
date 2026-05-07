@@ -3,9 +3,10 @@
 ## Stack
 - Next.js 16 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui
 - Supabase (database, storage) — CONECTADO
-  - Proyecto: bfdgqhdurmctutqmvtpr (eu-west-1)
-  - URL: https://bfdgqhdurmctutqmvtpr.supabase.co
-  - Storage bucket: vehicle-photos (público)
+  - Proyecto: ykyhvhpcnexpjvjmcwnc (eu-west-1) ← compartido con aux-dashboard
+  - URL: https://ykyhvhpcnexpjvjmcwnc.supabase.co
+  - Todas las tablas usan prefijo dealer_ (dealer_users, dealer_vehicles, etc.)
+  - Storage bucket: dealer-vehicle-photos (crear en Supabase Dashboard si no existe)
 - Idioma de la interfaz: español solamente
 
 ## Comandos

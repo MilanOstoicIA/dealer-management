@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import {
   UserCog, Mail, Phone, Shield, Wrench, ShoppingCart, ClipboardList,
-  Percent, TrendingUp, Award, Plus, Pencil, Trash2, Check, X,
-  LayoutDashboard, Database,
+  Percent, Award, Plus, Pencil, Trash2, Check, KeyRound,
+  LayoutDashboard, Database, UserPlus,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -16,10 +16,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
 import { useStore } from '@/lib/store'
 import { useAuth } from '@/lib/auth'
-import type { CustomRole, RolePermissions } from '@/types'
+import type { CustomRole, RolePermissions, UserRole } from '@/types'
 import { toast } from 'sonner'
+import { dbCreateUserWithPassword, dbUpdateUserPassword } from '@/lib/supabase-service'
 
 // ─── Role config ──────────────────────────────────────────────────────────────
 
@@ -72,6 +76,157 @@ const ROLE_COLORS = [
   '#3b82f6', '#22c55e', '#f59e0b', '#ef4444',
   '#8b5cf6', '#06b6d4', '#ec4899', '#64748b',
 ]
+
+// ─── Create user dialog ───────────────────────────────────────────────────────
+
+interface UserDialogProps {
+  onSave: (user: import('@/types').User) => void
+  onClose: () => void
+}
+
+function UserDialog({ onSave, onClose }: UserDialogProps) {
+  const [name, setName]       = useState('')
+  const [email, setEmail]     = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [role, setRole]       = useState<UserRole>('vendedor')
+  const [phone, setPhone]     = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function handleSave() {
+    if (!name.trim() || !email.trim() || !password) {
+      toast.error('Rellena todos los campos obligatorios')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('Email no válido')
+      return
+    }
+    if (password.length < 6) {
+      toast.error('La contraseña debe tener al menos 6 caracteres')
+      return
+    }
+    if (password !== confirm) {
+      toast.error('Las contraseñas no coinciden')
+      return
+    }
+    setLoading(true)
+    try {
+      const user = await dbCreateUserWithPassword(
+        { name: name.trim(), email: email.trim(), role, phone: phone.trim() || undefined },
+        password
+      )
+      onSave(user)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error al crear el usuario'
+      toast.error(msg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={open => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Nuevo usuario</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 mt-1">
+          <div className="space-y-1.5">
+            <Label>Nombre completo *</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: María García" autoFocus />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Email *</Label>
+            <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@empresa.es" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Contraseña *</Label>
+              <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mín. 6 caracteres" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Confirmar *</Label>
+              <Input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repetir contraseña" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Rol *</Label>
+            <Select value={role} onValueChange={v => setRole(v as UserRole)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="admin">Administrador</SelectItem>
+                <SelectItem value="vendedor">Vendedor</SelectItem>
+                <SelectItem value="mecanico">Mecánico</SelectItem>
+                <SelectItem value="recepcionista">Recepcionista</SelectItem>
+                <SelectItem value="viewer">Visor</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Teléfono (opcional)</Label>
+            <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+34 600 000 000" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={loading}>
+            {loading ? 'Creando...' : 'Crear usuario'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Change password dialog ────────────────────────────────────────────────────
+
+function PwDialog({ userId, userName, onClose }: { userId: string; userName: string; onClose: () => void }) {
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm]   = useState('')
+  const [loading, setLoading]   = useState(false)
+
+  async function handleSave() {
+    if (password.length < 6) { toast.error('La contraseña debe tener al menos 6 caracteres'); return }
+    if (password !== confirm)  { toast.error('Las contraseñas no coinciden'); return }
+    setLoading(true)
+    try {
+      await dbUpdateUserPassword(userId, password)
+      toast.success('Contraseña actualizada')
+      onClose()
+    } catch {
+      toast.error('Error al actualizar la contraseña')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={open => !open && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Cambiar contraseña — {userName}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 mt-1">
+          <div className="space-y-1.5">
+            <Label>Nueva contraseña *</Label>
+            <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mín. 6 caracteres" autoFocus />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Confirmar contraseña *</Label>
+            <Input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repetir contraseña" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={loading}>
+            {loading ? 'Guardando...' : 'Cambiar contraseña'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 // ─── Role editor dialog ───────────────────────────────────────────────────────
 
@@ -260,9 +415,12 @@ function RoleDialog({ role, onSave, onClose }: RoleDialogProps) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EquipoPage() {
-  const { users, sales, appointments, customRoles, addCustomRole, updateCustomRole, deleteCustomRole, updateUser } = useStore()
+  const { users, sales, appointments, customRoles, addCustomRole, updateCustomRole, deleteCustomRole, updateUser, addUserDirect } = useStore()
   const { canEdit } = useAuth()
   const isAdmin = canEdit('equipo')
+
+  const [userDialog, setUserDialog] = useState(false)
+  const [pwDialog, setPwDialog]     = useState<{ userId: string; userName: string } | null>(null)
 
   const [commissionRates, setCommissionRates] = useState<Record<string, string>>(
     Object.fromEntries(users.filter(u => u.role === 'vendedor').map(u => {
@@ -315,6 +473,12 @@ export default function EquipoPage() {
             {users.length} miembros · {customRoles.length} rol{customRoles.length !== 1 ? 'es' : ''} personalizado{customRoles.length !== 1 ? 's' : ''}
           </p>
         </div>
+        {isAdmin && (
+          <Button size="sm" onClick={() => setUserDialog(true)}>
+            <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+            Nuevo usuario
+          </Button>
+        )}
       </div>
 
       <Tabs defaultValue="equipo">
@@ -368,6 +532,17 @@ export default function EquipoPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-base font-semibold">{user.name}</p>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                onClick={() => setPwDialog({ userId: user.id, userName: user.name })}
+                                title="Cambiar contraseña"
+                              >
+                                <KeyRound className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             {customRole ? (
                               <span
                                 className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium"
@@ -571,6 +746,27 @@ export default function EquipoPage() {
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Create user dialog */}
+      {userDialog && (
+        <UserDialog
+          onSave={user => {
+            addUserDirect(user)
+            toast.success(`Usuario ${user.name} creado correctamente`)
+            setUserDialog(false)
+          }}
+          onClose={() => setUserDialog(false)}
+        />
+      )}
+
+      {/* Change password dialog */}
+      {pwDialog && (
+        <PwDialog
+          userId={pwDialog.userId}
+          userName={pwDialog.userName}
+          onClose={() => setPwDialog(null)}
+        />
+      )}
 
       {/* Role editor dialog */}
       {roleDialog && (

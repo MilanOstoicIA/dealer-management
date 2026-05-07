@@ -1,4 +1,4 @@
-import { supabase } from "./supabase"
+﻿import { supabase } from "./supabase"
 import type {
   Vehicle, Client, Sale, Appointment, Expense, User, ForumPost,
   VehicleServiceRecord, ClientVehicleInfo, WorkItem, Tracking,
@@ -356,19 +356,19 @@ export async function fetchAllData(): Promise<SupabaseState> {
     { data: invoicesData },
     { data: customRolesData },
   ] = await Promise.all([
-    supabase.from("users").select("*"),
-    supabase.from("vehicles").select("*"),
-    supabase.from("clients").select("*"),
-    supabase.from("sales").select("*"),
-    supabase.from("appointments").select("*"),
-    supabase.from("expenses").select("*"),
-    supabase.from("forum_posts").select("*"),
-    supabase.from("service_records").select("*"),
-    supabase.from("client_vehicle_info").select("*"),
-    supabase.from("trackings").select("*"),
-    supabase.from("suppliers").select("*"),
-    supabase.from("invoices").select("*").order("issued_date", { ascending: false }),
-    supabase.from("custom_roles").select("*").order("created_at", { ascending: true }),
+    supabase.from("dealer_users").select("*"),
+    supabase.from("dealer_vehicles").select("*"),
+    supabase.from("dealer_clients").select("*"),
+    supabase.from("dealer_sales").select("*"),
+    supabase.from("dealer_appointments").select("*"),
+    supabase.from("dealer_expenses").select("*"),
+    supabase.from("dealer_forum_posts").select("*"),
+    supabase.from("dealer_service_records").select("*"),
+    supabase.from("dealer_client_vehicle_info").select("*"),
+    supabase.from("dealer_trackings").select("*"),
+    supabase.from("dealer_suppliers").select("*"),
+    supabase.from("dealer_invoices").select("*").order("issued_date", { ascending: false }),
+    supabase.from("dealer_custom_roles").select("*").order("created_at", { ascending: true }),
   ])
 
   return {
@@ -392,59 +392,59 @@ export async function fetchAllData(): Promise<SupabaseState> {
 
 // Vehicles
 export async function dbAddVehicle(v: Omit<Vehicle, "id" | "createdAt">) {
-  const { data, error } = await supabase.from("vehicles").insert(vehicleToRow(v)).select().single()
+  const { data, error } = await supabase.from("dealer_vehicles").insert(vehicleToRow(v)).select().single()
   if (error) throw error
   return vehicleFromRow(data)
 }
 
 export async function dbUpdateVehicle(id: string, updates: Partial<Vehicle>) {
-  const { error } = await supabase.from("vehicles").update(vehicleToRow(updates)).eq("id", id)
+  const { error } = await supabase.from("dealer_vehicles").update(vehicleToRow(updates)).eq("id", id)
   if (error) throw error
 }
 
 export async function dbDeleteVehicle(id: string) {
-  const { error } = await supabase.from("vehicles").delete().eq("id", id)
+  const { error } = await supabase.from("dealer_vehicles").delete().eq("id", id)
   if (error) throw error
 }
 
 // Clients
 export async function dbAddClient(c: Omit<Client, "id" | "createdAt">) {
-  const { data, error } = await supabase.from("clients").insert(clientToRow(c)).select().single()
+  const { data, error } = await supabase.from("dealer_clients").insert(clientToRow(c)).select().single()
   if (error) throw error
   return clientFromRow(data)
 }
 
 export async function dbUpdateClient(id: string, updates: Partial<Client>) {
-  const { error } = await supabase.from("clients").update(clientToRow(updates)).eq("id", id)
+  const { error } = await supabase.from("dealer_clients").update(clientToRow(updates)).eq("id", id)
   if (error) throw error
 }
 
 export async function dbDeleteClient(id: string) {
-  const { error } = await supabase.from("clients").delete().eq("id", id)
+  const { error } = await supabase.from("dealer_clients").delete().eq("id", id)
   if (error) throw error
 }
 
 // Sales
 export async function dbAddSale(s: Sale) {
-  const { data, error } = await supabase.from("sales").insert(saleToRow(s)).select().single()
+  const { data, error } = await supabase.from("dealer_sales").insert(saleToRow(s)).select().single()
   if (error) throw error
   return saleFromRow(data)
 }
 
 export async function dbUpdateSale(id: string, updates: Partial<Sale>) {
-  const { error } = await supabase.from("sales").update(saleToRow(updates)).eq("id", id)
+  const { error } = await supabase.from("dealer_sales").update(saleToRow(updates)).eq("id", id)
   if (error) throw error
 }
 
 // Appointments
 export async function dbAddAppointment(a: Appointment) {
-  const { data, error } = await supabase.from("appointments").insert(appointmentToRow(a)).select().single()
+  const { data, error } = await supabase.from("dealer_appointments").insert(appointmentToRow(a)).select().single()
   if (error) throw error
   return appointmentFromRow(data)
 }
 
 export async function dbUpdateAppointment(id: string, updates: Partial<Appointment>) {
-  const { error } = await supabase.from("appointments").update(appointmentToRow(updates)).eq("id", id)
+  const { error } = await supabase.from("dealer_appointments").update(appointmentToRow(updates)).eq("id", id)
   if (error) throw error
 }
 
@@ -454,12 +454,12 @@ export async function dbAddExpense(e: Expense) {
     id: e.id, category: e.category, description: e.description,
     amount: e.amount, date: e.date, vehicle_id: e.vehicleId || null, notes: e.notes || null,
   }
-  const { error } = await supabase.from("expenses").insert(row)
+  const { error } = await supabase.from("dealer_expenses").insert(row)
   if (error) throw error
 }
 
 export async function dbDeleteExpense(id: string) {
-  const { error } = await supabase.from("expenses").delete().eq("id", id)
+  const { error } = await supabase.from("dealer_expenses").delete().eq("id", id)
   if (error) throw error
 }
 
@@ -470,7 +470,7 @@ export async function dbAddServiceRecord(sr: VehicleServiceRecord) {
     mechanic_id: sr.mechanicId, date: sr.date, service_type: sr.serviceType,
     mileage: sr.mileage, work_items: sr.workItems, photos: sr.photos, notes: sr.notes || null,
   }
-  const { error } = await supabase.from("service_records").insert(row)
+  const { error } = await supabase.from("dealer_service_records").insert(row)
   if (error) throw error
 }
 
@@ -482,7 +482,7 @@ export async function dbSetClientVehicleInfo(cvi: ClientVehicleInfo) {
     next_tire_change_km: cvi.nextTireChangeKm || null, next_revision_date: cvi.nextRevisionDate || null,
     notes: cvi.notes || null,
   }
-  const { error } = await supabase.from("client_vehicle_info").upsert(row, { onConflict: "vehicle_id" })
+  const { error } = await supabase.from("dealer_client_vehicle_info").upsert(row, { onConflict: "vehicle_id" })
   if (error) throw error
 }
 
@@ -493,7 +493,7 @@ export async function dbAddUser(u: User) {
     avatar_url: u.avatarUrl || null, phone: u.phone || null,
     password_hash: "1234", created_at: u.createdAt,
   }
-  const { error } = await supabase.from("users").insert(row)
+  const { error } = await supabase.from("dealer_users").insert(row)
   if (error) throw error
 }
 
@@ -505,14 +505,14 @@ export async function dbUpdateUser(id: string, updates: Partial<User>) {
   if (updates.phone !== undefined) row.phone = updates.phone
   if (updates.avatarUrl !== undefined) row.avatar_url = updates.avatarUrl
   if ("customRoleId" in updates) row.custom_role_id = updates.customRoleId || null
-  const { error } = await supabase.from("users").update(row).eq("id", id)
+  const { error } = await supabase.from("dealer_users").update(row).eq("id", id)
   if (error) throw error
 }
 
 // ─── Custom roles CRUD ───────────────────────────────────────────────────────
 
 export async function dbAddCustomRole(role: CustomRole): Promise<CustomRole> {
-  const { data, error } = await supabase.from("custom_roles").insert({
+  const { data, error } = await supabase.from("dealer_custom_roles").insert({
     id: role.id,
     name: role.name,
     description: role.description || null,
@@ -530,12 +530,12 @@ export async function dbUpdateCustomRole(id: string, updates: Partial<CustomRole
   if (updates.description !== undefined) row.description = updates.description || null
   if (updates.color !== undefined) row.color = updates.color
   if (updates.permissions !== undefined) row.permissions = updates.permissions
-  const { error } = await supabase.from("custom_roles").update(row).eq("id", id)
+  const { error } = await supabase.from("dealer_custom_roles").update(row).eq("id", id)
   if (error) throw error
 }
 
 export async function dbDeleteCustomRole(id: string): Promise<void> {
-  const { error } = await supabase.from("custom_roles").delete().eq("id", id)
+  const { error } = await supabase.from("dealer_custom_roles").delete().eq("id", id)
   if (error) throw error
 }
 
@@ -549,7 +549,7 @@ export async function dbAddForumPost(p: ForumPost) {
     description: p.description, images: p.images, status: p.status,
     notes: p.notes || null, created_at: p.createdAt,
   }
-  const { error } = await supabase.from("forum_posts").insert(row)
+  const { error } = await supabase.from("dealer_forum_posts").insert(row)
   if (error) throw error
 }
 
@@ -558,7 +558,7 @@ export async function dbUpdateForumPost(id: string, updates: Partial<ForumPost>)
   if (updates.status !== undefined) row.status = updates.status
   if (updates.notes !== undefined) row.notes = updates.notes
   if (updates.images !== undefined) row.images = updates.images
-  const { error } = await supabase.from("forum_posts").update(row).eq("id", id)
+  const { error } = await supabase.from("dealer_forum_posts").update(row).eq("id", id)
   if (error) throw error
 }
 
@@ -597,7 +597,7 @@ export async function dbAddTracking(t: Tracking) {
     tracking_number: t.trackingNumber || null, estimated_delivery: t.estimatedDelivery || null,
     created_at: t.createdAt, updated_at: t.updatedAt,
   }
-  const { error } = await supabase.from("trackings").insert(row)
+  const { error } = await supabase.from("dealer_trackings").insert(row)
   if (error) throw error
 }
 
@@ -619,12 +619,12 @@ export async function dbUpdateTracking(id: string, updates: Partial<Tracking>) {
   if (updates.trackingNumber !== undefined) row.tracking_number = updates.trackingNumber
   if (updates.estimatedDelivery !== undefined) row.estimated_delivery = updates.estimatedDelivery
   if (updates.updatedAt !== undefined) row.updated_at = updates.updatedAt
-  const { error } = await supabase.from("trackings").update(row).eq("id", id)
+  const { error } = await supabase.from("dealer_trackings").update(row).eq("id", id)
   if (error) throw error
 }
 
 export async function dbDeleteTracking(id: string) {
-  const { error } = await supabase.from("trackings").delete().eq("id", id)
+  const { error } = await supabase.from("dealer_trackings").delete().eq("id", id)
   if (error) throw error
 }
 
@@ -637,7 +637,7 @@ export async function dbAddSupplier(s: Supplier) {
     contact_person: s.contactPerson || null, address: s.address || null,
     notes: s.notes || null, active: s.active, created_at: s.createdAt,
   }
-  const { error } = await supabase.from("suppliers").insert(row)
+  const { error } = await supabase.from("dealer_suppliers").insert(row)
   if (error) throw error
 }
 
@@ -653,12 +653,12 @@ export async function dbUpdateSupplier(id: string, updates: Partial<Supplier>) {
   if (updates.address !== undefined) row.address = updates.address
   if (updates.notes !== undefined) row.notes = updates.notes
   if (updates.active !== undefined) row.active = updates.active
-  const { error } = await supabase.from("suppliers").update(row).eq("id", id)
+  const { error } = await supabase.from("dealer_suppliers").update(row).eq("id", id)
   if (error) throw error
 }
 
 export async function dbDeleteSupplier(id: string) {
-  const { error } = await supabase.from("suppliers").delete().eq("id", id)
+  const { error } = await supabase.from("dealer_suppliers").delete().eq("id", id)
   if (error) throw error
 }
 
@@ -670,13 +670,13 @@ export async function dbAddTrackingHistory(entry: TrackingHistoryEntry) {
     changed_by: entry.changedBy || null, note: entry.note || null,
     created_at: entry.createdAt,
   }
-  const { error } = await supabase.from("tracking_history").insert(row)
+  const { error } = await supabase.from("dealer_tracking_history").insert(row)
   if (error) throw error
 }
 
 export async function dbFetchTrackingHistory(trackingId: string): Promise<TrackingHistoryEntry[]> {
   const { data, error } = await supabase
-    .from("tracking_history")
+    .from("dealer_tracking_history")
     .select("*")
     .eq("tracking_id", trackingId)
     .order("created_at", { ascending: true })
@@ -686,13 +686,13 @@ export async function dbFetchTrackingHistory(trackingId: string): Promise<Tracki
 
 // Invoices
 export async function dbAddInvoice(inv: Invoice) {
-  const { data, error } = await supabase.from("invoices").insert(invoiceToRow(inv)).select().single()
+  const { data, error } = await supabase.from("dealer_invoices").insert(invoiceToRow(inv)).select().single()
   if (error) throw error
   return invoiceFromRow(data)
 }
 
 export async function dbUpdateInvoice(id: string, updates: Partial<Invoice>) {
-  const { error } = await supabase.from("invoices").update(invoiceToRow(updates)).eq("id", id)
+  const { error } = await supabase.from("dealer_invoices").update(invoiceToRow(updates)).eq("id", id)
   if (error) throw error
 }
 
@@ -700,7 +700,7 @@ export async function dbGetNextInvoiceNumber(): Promise<string> {
   const year = new Date().getFullYear()
   const prefix = `FAC-${year}-`
   const { data } = await supabase
-    .from("invoices")
+    .from("dealer_invoices")
     .select("invoice_number")
     .like("invoice_number", `${prefix}%`)
     .order("invoice_number", { ascending: false })
@@ -715,13 +715,13 @@ export async function dbGetNextInvoiceNumber(): Promise<string> {
 
 // Settings
 export async function dbGetSetting(key: string): Promise<string | null> {
-  const { data } = await supabase.from("settings").select("value").eq("key", key).single()
+  const { data } = await supabase.from("dealer_settings").select("value").eq("key", key).single()
   return data?.value || null
 }
 
 export async function dbSetSetting(key: string, value: string): Promise<void> {
-  const { error } = await supabase.from("settings").upsert(
-    { key, value, updated_at: new Date().toISOString() },
+  const { error } = await supabase.from("dealer_settings").upsert(
+    { key, value },
     { onConflict: "key" }
   )
   if (error) throw error
@@ -731,7 +731,7 @@ export async function dbSetSetting(key: string, value: string): Promise<void> {
 
 export async function dbVerifyPassword(email: string, password: string): Promise<User | null> {
   const { data, error } = await supabase
-    .from("users")
+    .from("dealer_users")
     .select("*")
     .eq("email", email)
     .eq("password_hash", password)
@@ -742,7 +742,7 @@ export async function dbVerifyPassword(email: string, password: string): Promise
 
 export async function dbGetUserByEmail(email: string): Promise<User | null> {
   const { data, error } = await supabase
-    .from("users")
+    .from("dealer_users")
     .select("*")
     .eq("email", email)
     .single()
@@ -757,13 +757,13 @@ export async function uploadVehiclePhoto(vehicleId: string, file: File): Promise
   const fileName = `${vehicleId}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`
 
   const { error } = await supabase.storage
-    .from("vehicle-photos")
+    .from("dealer-vehicle-photos")
     .upload(fileName, file, { cacheControl: "3600", upsert: false })
 
   if (error) throw error
 
   const { data: urlData } = supabase.storage
-    .from("vehicle-photos")
+    .from("dealer-vehicle-photos")
     .getPublicUrl(fileName)
 
   return urlData.publicUrl
@@ -771,9 +771,9 @@ export async function uploadVehiclePhoto(vehicleId: string, file: File): Promise
 
 export async function deleteVehiclePhoto(url: string): Promise<void> {
   // Extract path from full URL
-  const match = url.match(/vehicle-photos\/(.+)$/)
+  const match = url.match(/dealer-vehicle-photos\/(.+)$/)
   if (!match) return
-  const { error } = await supabase.storage.from("vehicle-photos").remove([match[1]])
+  const { error } = await supabase.storage.from("dealer-vehicle-photos").remove([match[1]])
   if (error) throw error
 }
 
@@ -806,7 +806,7 @@ function messageFromRow(r: Record<string, unknown>): WhatsAppMessage {
 
 export async function dbGetWhatsAppContacts(): Promise<WhatsAppContact[]> {
   const { data, error } = await supabase
-    .from('whatsapp_contacts')
+    .from('dealer_whatsapp_contacts')
     .select('*')
     .order('last_message_at', { ascending: false, nullsFirst: false })
   if (error) throw error
@@ -815,7 +815,7 @@ export async function dbGetWhatsAppContacts(): Promise<WhatsAppContact[]> {
 
 export async function dbGetWhatsAppMessages(contactId: string): Promise<WhatsAppMessage[]> {
   const { data, error } = await supabase
-    .from('whatsapp_messages')
+    .from('dealer_whatsapp_messages')
     .select('*')
     .eq('contact_id', contactId)
     .order('sent_at', { ascending: true })
@@ -825,7 +825,7 @@ export async function dbGetWhatsAppMessages(contactId: string): Promise<WhatsApp
 
 export async function dbUpsertWhatsAppContact(phone: string, name: string, clientId?: string): Promise<WhatsAppContact> {
   const { data, error } = await supabase
-    .from('whatsapp_contacts')
+    .from('dealer_whatsapp_contacts')
     .upsert(
       { phone, name: name || phone, ...(clientId ? { client_id: clientId } : {}) },
       { onConflict: 'phone', ignoreDuplicates: false }
@@ -843,7 +843,7 @@ export async function dbInsertWhatsAppMessage(
   mediaUrl?: string,
 ): Promise<WhatsAppMessage> {
   const { data, error } = await supabase
-    .from('whatsapp_messages')
+    .from('dealer_whatsapp_messages')
     .insert({ contact_id: contactId, direction, body, media_url: mediaUrl ?? null })
     .select()
     .single()
@@ -858,28 +858,28 @@ export async function dbInsertWhatsAppMessage(
     // Increment unread_count via RPC-style raw SQL isn't available without a function,
     // so we do a select + update instead
     const { data: contact } = await supabase
-      .from('whatsapp_contacts')
+      .from('dealer_whatsapp_contacts')
       .select('unread_count')
       .eq('id', contactId)
       .single()
     updatePayload.unread_count = ((contact?.unread_count as number) ?? 0) + 1
   }
 
-  await supabase.from('whatsapp_contacts').update(updatePayload).eq('id', contactId)
+  await supabase.from('dealer_whatsapp_contacts').update(updatePayload).eq('id', contactId)
 
   return messageFromRow(data)
 }
 
 export async function dbMarkWhatsAppContactRead(contactId: string): Promise<void> {
   await supabase
-    .from('whatsapp_contacts')
+    .from('dealer_whatsapp_contacts')
     .update({ unread_count: 0 })
     .eq('id', contactId)
 }
 
 export async function dbGetWhatsAppContactByPhone(phone: string): Promise<WhatsAppContact | null> {
   const { data } = await supabase
-    .from('whatsapp_contacts')
+    .from('dealer_whatsapp_contacts')
     .select('*')
     .eq('phone', phone)
     .single()
@@ -887,5 +887,36 @@ export async function dbGetWhatsAppContactByPhone(phone: string): Promise<WhatsA
 }
 
 export async function dbAutoLinkWhatsAppContact(contactId: string, clientId: string): Promise<void> {
-  await supabase.from('whatsapp_contacts').update({ client_id: clientId }).eq('id', contactId)
+  await supabase.from('dealer_whatsapp_contacts').update({ client_id: clientId }).eq('id', contactId)
+}
+
+// ─── User creation with password hash ────────────────────────────────────────
+
+export async function dbCreateUserWithPassword(
+  userData: { name: string; email: string; role: User["role"]; phone?: string },
+  password: string
+): Promise<User> {
+  const encoder = new TextEncoder()
+  const buf = await crypto.subtle.digest("SHA-256", encoder.encode(password))
+  const passwordHash = Array.from(new Uint8Array(buf))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("")
+
+  const { data, error } = await supabase
+    .from("dealer_users")
+    .insert({ name: userData.name, email: userData.email, role: userData.role, phone: userData.phone || null, password_hash: passwordHash })
+    .select()
+    .single()
+  if (error) throw error
+  return userFromRow(data)
+}
+
+export async function dbUpdateUserPassword(id: string, password: string): Promise<void> {
+  const encoder = new TextEncoder()
+  const buf = await crypto.subtle.digest("SHA-256", encoder.encode(password))
+  const passwordHash = Array.from(new Uint8Array(buf))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("")
+  const { error } = await supabase.from("dealer_users").update({ password_hash: passwordHash }).eq("id", id)
+  if (error) throw error
 }
