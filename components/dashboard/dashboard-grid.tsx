@@ -104,19 +104,18 @@ const STAT_CONFIG: Record<WidgetType, {
   label: string
   icon: React.ReactNode
   link: string
-  colorClass: string
-  bgClass: string
+  solidBg: string        // clase Tailwind de fondo sólido
   getValue: (d: DashboardData) => string | number
   getSubtext?: (d: DashboardData) => string
 } | undefined> = {
-  stat_vehicles:     { label: 'Vehículos disponibles', icon: <Car className="h-5 w-5" />, link: '/dashboard/vehiculos',  colorClass: 'text-blue-600',   bgClass: 'bg-blue-500/10',   getValue: d => d.availableVehicles,    getSubtext: d => `${d.totalVehicles} en total · ${d.vehiclesSold} vendidos` },
-  stat_clients:      { label: 'Clientes totales',      icon: <Users className="h-5 w-5" />, link: '/dashboard/clientes',   colorClass: 'text-purple-600', bgClass: 'bg-purple-500/10', getValue: d => d.totalClients,        getSubtext: () => 'Clientes registrados' },
-  stat_appointments: { label: 'Citas pendientes',      icon: <CalendarDays className="h-5 w-5" />, link: '/dashboard/citas',      colorClass: 'text-yellow-600', bgClass: 'bg-yellow-500/10', getValue: d => d.pendingAppointments, getSubtext: d => `${d.vehiclesInWorkshop} en taller ahora` },
-  stat_revenue:      { label: 'Ingresos del mes',      icon: <Euro className="h-5 w-5" />, link: '/dashboard/ventas',     colorClass: 'text-green-600',  bgClass: 'bg-green-500/10',  getValue: d => formatCurrency(d.monthlySalesRevenue), getSubtext: d => `${formatCurrency(d.monthlyCommissions)} en comisiones` },
-  stat_commissions:  { label: 'Comisiones del mes',    icon: <TrendingUp className="h-5 w-5" />, link: '/dashboard/ventas',     colorClass: 'text-emerald-600',bgClass: 'bg-emerald-500/10',getValue: d => formatCurrency(d.monthlyCommissions), getSubtext: () => 'Comisiones del equipo' },
-  stat_in_workshop:  { label: 'En taller',             icon: <Wrench className="h-5 w-5" />, link: '/dashboard/citas',      colorClass: 'text-orange-600', bgClass: 'bg-orange-500/10', getValue: d => d.vehiclesInWorkshop,   getSubtext: () => 'Vehículos en reparación' },
-  stat_reserved:     { label: 'Reservados',            icon: <Lock className="h-5 w-5" />, link: '/dashboard/vehiculos',  colorClass: 'text-indigo-600', bgClass: 'bg-indigo-500/10', getValue: d => d.vehiclesReserved,     getSubtext: () => 'Con señal o apartados' },
-  stat_sold_month:   { label: 'Vendidos este mes',     icon: <CheckSquare className="h-5 w-5" />, link: '/dashboard/ventas',     colorClass: 'text-teal-600',   bgClass: 'bg-teal-500/10',   getValue: d => d.soldThisMonth,        getSubtext: () => 'Ventas completadas' },
+  stat_vehicles:     { label: 'Vehículos disponibles', icon: <Car className="h-6 w-6 text-white" />,         link: '/dashboard/vehiculos', solidBg: 'bg-blue-500',    getValue: d => d.availableVehicles,                   getSubtext: d => `${d.totalVehicles} en total · ${d.vehiclesSold} vendidos` },
+  stat_clients:      { label: 'Clientes totales',      icon: <Users className="h-6 w-6 text-white" />,       link: '/dashboard/clientes',  solidBg: 'bg-violet-500',  getValue: d => d.totalClients,                        getSubtext: () => 'Clientes registrados' },
+  stat_appointments: { label: 'Citas pendientes',      icon: <CalendarDays className="h-6 w-6 text-white" />,link: '/dashboard/citas',     solidBg: 'bg-amber-500',   getValue: d => d.pendingAppointments,                 getSubtext: d => `${d.vehiclesInWorkshop} en taller ahora` },
+  stat_revenue:      { label: 'Ingresos del mes',      icon: <Euro className="h-6 w-6 text-white" />,        link: '/dashboard/ventas',    solidBg: 'bg-emerald-500', getValue: d => formatCurrency(d.monthlySalesRevenue),  getSubtext: d => `${formatCurrency(d.monthlyCommissions)} en comisiones` },
+  stat_commissions:  { label: 'Comisiones del mes',    icon: <TrendingUp className="h-6 w-6 text-white" />,  link: '/dashboard/ventas',    solidBg: 'bg-green-500',   getValue: d => formatCurrency(d.monthlyCommissions),  getSubtext: () => 'Comisiones del equipo' },
+  stat_in_workshop:  { label: 'En taller',             icon: <Wrench className="h-6 w-6 text-white" />,      link: '/dashboard/citas',     solidBg: 'bg-orange-500',  getValue: d => d.vehiclesInWorkshop,                  getSubtext: () => 'Vehículos en reparación' },
+  stat_reserved:     { label: 'Reservados',            icon: <Lock className="h-6 w-6 text-white" />,        link: '/dashboard/vehiculos', solidBg: 'bg-indigo-500',  getValue: d => d.vehiclesReserved,                    getSubtext: () => 'Con señal o apartados' },
+  stat_sold_month:   { label: 'Vendidos este mes',     icon: <CheckSquare className="h-6 w-6 text-white" />, link: '/dashboard/ventas',    solidBg: 'bg-teal-500',    getValue: d => d.soldThisMonth,                       getSubtext: () => 'Ventas completadas' },
   list_appointments: undefined, list_recent_sales: undefined, list_forum: undefined, list_trackings: undefined,
   chart_monthly_revenue: undefined, chart_vehicles_status: undefined, chart_sales_by_seller: undefined,
 }
@@ -128,24 +127,44 @@ function StatWidget({ type, data, editMode }: { type: WidgetType; data: Dashboar
   const subtext = cfg.getSubtext?.(data)
 
   const content = (
-    <div className="h-full flex flex-col p-5 gap-2">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider leading-tight">{cfg.label}</p>
-        <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', cfg.bgClass, cfg.colorClass)}>
+    <div className={cn('h-full flex flex-col justify-between p-5 rounded-xl overflow-hidden relative', cfg.solidBg)}>
+      {/* Decoración fondo */}
+      <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-white/10 pointer-events-none" />
+      <div className="absolute -right-1 -bottom-6 h-28 w-28 rounded-full bg-white/5 pointer-events-none" />
+
+      {/* Fila superior: icono */}
+      <div className="flex items-start justify-between gap-2 relative z-10">
+        <p className="text-white/80 text-xs font-semibold uppercase tracking-widest leading-snug pr-2">{cfg.label}</p>
+        <div className="shrink-0 flex h-11 w-11 items-center justify-center rounded-xl bg-white/20">
           {cfg.icon}
         </div>
       </div>
-      <div className="flex-1 flex items-end">
-        <p className="text-3xl font-bold tracking-tight leading-none">{value}</p>
+
+      {/* Número principal */}
+      <div className="relative z-10 mt-3">
+        <p className="text-4xl font-extrabold text-white leading-none tracking-tight">{value}</p>
+        {subtext && <p className="text-white/65 text-xs mt-1.5 leading-tight">{subtext}</p>}
       </div>
-      {subtext && <p className="text-xs text-muted-foreground">{subtext}</p>}
     </div>
   )
 
-  if (editMode) return content
+  if (editMode) return <div className="h-full">{content}</div>
   return (
-    <Link href={cfg.link} className="h-full block hover:bg-muted/30 transition-colors">
-      {content}
+    <Link href={cfg.link} className="h-full block group">
+      <div className={cn('h-full flex flex-col justify-between p-5 rounded-xl overflow-hidden relative transition-all duration-200 group-hover:brightness-110 group-hover:shadow-xl', cfg.solidBg)}>
+        <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-white/10 pointer-events-none" />
+        <div className="absolute -right-1 -bottom-6 h-28 w-28 rounded-full bg-white/5 pointer-events-none" />
+        <div className="flex items-start justify-between gap-2 relative z-10">
+          <p className="text-white/80 text-xs font-semibold uppercase tracking-widest leading-snug pr-2">{cfg.label}</p>
+          <div className="shrink-0 flex h-11 w-11 items-center justify-center rounded-xl bg-white/20">
+            {cfg.icon}
+          </div>
+        </div>
+        <div className="relative z-10 mt-3">
+          <p className="text-4xl font-extrabold text-white leading-none tracking-tight">{value}</p>
+          {subtext && <p className="text-white/65 text-xs mt-1.5 leading-tight">{subtext}</p>}
+        </div>
+      </div>
     </Link>
   )
 }
@@ -352,21 +371,32 @@ function ListWidget({ type, data, editMode }: { type: WidgetType; data: Dashboar
 function ChartBarWidget({ type, data }: { type: WidgetType; data: DashboardData }) {
   if (type === 'chart_monthly_revenue') {
     return (
-      <div className="h-full flex flex-col p-4">
-        <p className="text-sm font-semibold mb-3">Ingresos últimos 6 meses</p>
-        <div className="flex-1 min-h-0">
+      <div className="h-full flex flex-col">
+        {/* Header */}
+        <div className="px-5 pt-4 pb-3 flex items-center justify-between shrink-0">
+          <div>
+            <p className="text-sm font-bold">Ingresos vs Gastos</p>
+            <p className="text-xs text-muted-foreground">Últimos 6 meses</p>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block" />Ingresos</span>
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-400 inline-block" />Gastos</span>
+          </div>
+        </div>
+        <div className="flex-1 min-h-0 px-2 pb-3">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.monthlyRevenue} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} className="text-muted-foreground" />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} className="text-muted-foreground" />
+            <BarChart data={data.monthlyRevenue} margin={{ top: 5, right: 10, left: 0, bottom: 5 }} barGap={4}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} width={38} />
               <RechartTooltip
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 formatter={(value: any, name: any) => [formatCurrency(Number(value ?? 0)), name === 'ingresos' ? 'Ingresos' : 'Gastos']}
-                contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}
+                cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
               />
-              <Bar dataKey="ingresos" fill="var(--color-green-500, #22c55e)" radius={[3, 3, 0, 0]} name="ingresos" />
-              <Bar dataKey="gastos"   fill="var(--color-red-400, #f87171)"   radius={[3, 3, 0, 0]} name="gastos" />
+              <Bar dataKey="ingresos" fill="#10b981" radius={[4, 4, 0, 0]} name="ingresos" maxBarSize={28} />
+              <Bar dataKey="gastos"   fill="#f87171" radius={[4, 4, 0, 0]} name="gastos"   maxBarSize={28} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -375,23 +405,38 @@ function ChartBarWidget({ type, data }: { type: WidgetType; data: DashboardData 
   }
 
   if (type === 'chart_sales_by_seller') {
+    const total = data.salesBySeller.reduce((s, v) => s + v.ventas, 0)
     return (
-      <div className="h-full flex flex-col p-4">
-        <p className="text-sm font-semibold mb-3">Ventas por vendedor</p>
-        <div className="flex-1 min-h-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.salesBySeller} layout="vertical" margin={{ top: 5, right: 10, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-              <XAxis type="number" tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={70} />
-              <RechartTooltip
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={(value: any, name: any) => [name === 'ventas' ? `${value} unidades` : formatCurrency(Number(value ?? 0)), name === 'ventas' ? 'Ventas' : 'Ingresos']}
-                contentStyle={{ fontSize: 12, borderRadius: 8 }}
-              />
-              <Bar dataKey="ventas" fill="var(--color-blue-500, #3b82f6)" radius={[0, 3, 3, 0]} name="ventas" />
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="h-full flex flex-col">
+        <div className="px-5 pt-4 pb-3 shrink-0">
+          <p className="text-sm font-bold">Top Vendedores</p>
+          <p className="text-xs text-muted-foreground">{total} ventas completadas</p>
+        </div>
+        <div className="flex-1 overflow-auto divide-y divide-border/50 min-h-0">
+          {data.salesBySeller.length === 0 && (
+            <p className="px-5 py-6 text-center text-sm text-muted-foreground">Sin ventas completadas</p>
+          )}
+          {data.salesBySeller.map((s, i) => (
+            <div key={s.name} className="flex items-center gap-4 px-5 py-3">
+              {/* Posición */}
+              <div className={cn(
+                'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
+                i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-400 text-white' : 'bg-muted text-muted-foreground'
+              )}>
+                {i + 1}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{s.name}</p>
+                <div className="mt-1 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: total > 0 ? `${(s.ventas / data.salesBySeller[0].ventas) * 100}%` : '0%' }} />
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-sm font-bold">{s.ventas} <span className="text-xs font-normal text-muted-foreground">ventas</span></p>
+                <p className="text-xs text-muted-foreground">{formatCurrency(s.ingresos)}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     )
@@ -403,9 +448,13 @@ function ChartBarWidget({ type, data }: { type: WidgetType; data: DashboardData 
 const PIE_COLORS = ['#22c55e', '#f59e0b', '#3b82f6', '#ef4444']
 
 function ChartPieWidget({ data }: { data: DashboardData }) {
+  const total = data.vehiclesByStatus.reduce((s, v) => s + v.value, 0)
   return (
-    <div className="h-full flex flex-col p-4">
-      <p className="text-sm font-semibold mb-2">Estado del stock</p>
+    <div className="h-full flex flex-col">
+      <div className="px-5 pt-4 pb-2 shrink-0">
+        <p className="text-sm font-bold">Estado del stock</p>
+        <p className="text-xs text-muted-foreground">{total} vehículos en total</p>
+      </div>
       <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -413,17 +462,20 @@ function ChartPieWidget({ data }: { data: DashboardData }) {
               data={data.vehiclesByStatus}
               cx="50%"
               cy="45%"
-              innerRadius="40%"
-              outerRadius="65%"
+              innerRadius="38%"
+              outerRadius="62%"
               paddingAngle={3}
               dataKey="value"
             >
               {data.vehiclesByStatus.map((entry, i) => (
-                <Cell key={entry.name} fill={entry.color ?? PIE_COLORS[i % PIE_COLORS.length]} />
+                <Cell key={entry.name} fill={entry.color ?? PIE_COLORS[i % PIE_COLORS.length]} strokeWidth={0} />
               ))}
             </Pie>
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            <RechartTooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" iconSize={8} />
+            <RechartTooltip
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}
+              formatter={(v) => [`${v} vehículos`, '']}
+            />
           </PieChart>
         </ResponsiveContainer>
       </div>

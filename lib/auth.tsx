@@ -194,13 +194,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 2. Mock password check (demo / offline mode)
     const expectedPassword = MOCK_PASSWORDS[email]
     if (expectedPassword && expectedPassword === password) {
-      // Try store first (already loaded)
-      let foundUser = store.users.find((u) => u.email === email)
+      // Nivel 1: buscar en el store (ya cargado)
+      let foundUser: User | undefined = store.users.find((u) => u.email === email)
 
-      // If store hasn't populated yet, fetch directly from Supabase
+      // Nivel 2: buscar directamente en Supabase
       if (!foundUser) {
-        const { dbGetUserByEmail } = await import("@/lib/supabase-service")
-        foundUser = (await dbGetUserByEmail(email)) ?? undefined
+        try {
+          const { dbGetUserByEmail } = await import("@/lib/supabase-service")
+          foundUser = (await dbGetUserByEmail(email)) ?? undefined
+        } catch { /* Supabase no disponible, continuamos */ }
+      }
+
+      // Nivel 3: fallback con usuarios demo hardcodeados (siempre funciona)
+      if (!foundUser) {
+        const { users: demoUsers } = await import("@/lib/data")
+        foundUser = demoUsers.find((u) => u.email === email)
       }
 
       if (foundUser) {
