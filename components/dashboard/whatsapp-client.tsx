@@ -1,16 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Send, Phone, User, MessageSquare, RefreshCw, Settings2,
   ExternalLink, Wifi, WifiOff, Search, X, ChevronLeft,
-  CheckCheck, Check, AlertCircle,
+  CheckCheck, Check, AlertCircle, Smartphone,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -26,26 +24,37 @@ import {
 import type { WhatsAppContact, WhatsAppMessage } from '@/types'
 import { toast } from 'sonner'
 
-// ─── Evolution API helper ─────────────────────────────────────────────────────
+// ─── Local Bridge helper ──────────────────────────────────────────────────────
 
-async function evolutionSendMessage(instanceUrl: string, apiKey: string, phone: string, text: string) {
-  const baseUrl = instanceUrl.replace(/\/$/, '')
-  const res = await fetch(`${baseUrl}/message/sendText/dealerhub`, {
+async function localBridgeSend(bridgeUrl: string, phone: string, text: string) {
+  const base = bridgeUrl.replace(/\/$/, '')
+  const res = await fetch(`${base}/send`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: apiKey,
-    },
-    body: JSON.stringify({
-      number: phone,
-      text,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ number: phone, message: text }),
   })
   if (!res.ok) {
     const err = await res.text()
-    throw new Error(`Evolution API error: ${res.status} ${err}`)
+    throw new Error(`Bridge error: ${res.status} ${err}`)
   }
   return res.json()
+}
+
+interface BridgeStatus {
+  status: 'connected' | 'qr_ready' | 'disconnected' | 'logged_out'
+  connected: boolean
+  number: string | null
+  hasQR: boolean
+}
+
+async function fetchBridgeStatus(bridgeUrl: string): Promise<BridgeStatus | null> {
+  try {
+    const res = await fetch(`${bridgeUrl.replace(/\/$/, '')}/status`, { signal: AbortSignal.timeout(3000) })
+    if (!res.ok) return null
+    return res.json()
+  } catch {
+    return null
+  }
 }
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
@@ -78,64 +87,76 @@ function MsgStatusIcon({ status }: { status: WhatsAppMessage['status'] }) {
 // ─── Setup Dialog ─────────────────────────────────────────────────────────────
 
 interface SetupDialogProps {
-  onSave: (url: string, key: string) => void
+  onSave: (url: string) => void
   onClose: () => void
   initialUrl?: string
-  initialKey?: string
+  bridgeStatus: BridgeStatus | null
 }
 
-function SetupDialog({ onSave, onClose, initialUrl = '', initialKey = '' }: SetupDialogProps) {
-  const [url, setUrl] = useState(initialUrl)
-  const [key, setKey] = useState(initialKey)
+function SetupDialog({ onSave, onClose, initialUrl = 'http://localhost:3099', bridgeStatus }: SetupDialogProps) {
+  const [url, setUrl] = useState(initialUrl || 'http://localhost:3099')
+
+  const webhookUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/api/whatsapp/webhook`
+    : '/api/whatsapp/webhook'
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Configurar Evolution API</DialogTitle>
+          <DialogTitle>Configurar WhatsApp Bridge</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 mt-1">
-          <p className="text-sm text-muted-foreground">
-            Necesitas una instancia de Evolution API corriendo en tu servidor. Configura la URL y la clave de API para conectar WhatsApp.
-          </p>
+          {/* Status indicator */}
+          {bridgeStatus && (
+            <div className={cn(
+              'rounded-lg border p-3 flex items-center gap-2.5 text-sm',
+              bridgeStatus.connected
+                ? 'border-green-500/30 bg-green-500/10 text-green-700'
+                : 'border-amber-500/30 bg-amber-500/10 text-amber-700'
+            )}>
+              <Smartphone className="h-4 w-4 shrink-0" />
+              <div>
+                {bridgeStatus.connected
+                  ? <>✅ WhatsApp conectado — <span className="font-mono">+{bridgeStatus.number}</span></>
+                  : bridgeStatus.hasQR
+                  ? <>📱 Esperando escaneo QR — <a href={`${url}/qr`} target="_blank" rel="noopener noreferrer" className="underline font-medium">Ver QR</a></>
+                  : <>⏳ Bridge iniciando…</>
+                }
+              </div>
+            </div>
+          )}
+
+          {!bridgeStatus && (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+              ⚠️ No se puede contactar el bridge. Asegúrate de que está corriendo con <code className="bg-muted px-1 rounded text-xs">node server.js</code> en <code className="bg-muted px-1 rounded text-xs">D:/Dev/whatsapp-local/</code>
+            </div>
+          )}
 
           <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pasos de configuración</p>
-            <ol className="text-xs text-muted-foreground space-y-1 list-decimal pl-4">
-              <li>Despliega Evolution API v2 en tu VPS (Docker recomendado)</li>
-              <li>Crea una instancia llamada <code className="bg-muted px-1 rounded">dealerhub</code></li>
-              <li>Escanea el QR code con tu número de WhatsApp Business</li>
-              <li>Configura el webhook: <code className="bg-muted px-1 rounded text-[10px]">{typeof window !== 'undefined' ? window.location.origin : ''}/api/whatsapp/webhook</code></li>
-            </ol>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Configuración del webhook</p>
+            <p className="text-xs text-muted-foreground">Ejecuta este comando para que el bridge envíe mensajes a este dashboard:</p>
+            <code className="block bg-muted rounded p-2 text-[10px] font-mono break-all select-all">
+              {`curl -X POST ${url.replace(/\/$/, '')}/config -H "Content-Type: application/json" -d "{\\"webhookUrl\\":\\"${webhookUrl}\\"}"`}
+            </code>
           </div>
 
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>URL del servidor Evolution API</Label>
-              <Input
-                value={url}
-                onChange={e => setUrl(e.target.value)}
-                placeholder="https://mi-evolution-api.com"
-                autoFocus
-              />
-              <p className="text-xs text-muted-foreground">URL base del servidor (sin barra final)</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label>API Key</Label>
-              <Input
-                value={key}
-                onChange={e => setKey(e.target.value)}
-                type="password"
-                placeholder="tu-api-key-secreta"
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label>URL del WhatsApp Bridge local</Label>
+            <Input
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              placeholder="http://localhost:3099"
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">Por defecto: <code className="bg-muted px-1 rounded">http://localhost:3099</code></p>
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={() => { if (url.trim()) onSave(url.trim(), key.trim()) }}>
+          <Button onClick={() => { if (url.trim()) onSave(url.trim()) }}>
             Guardar configuración
           </Button>
         </DialogFooter>
@@ -238,13 +259,10 @@ interface WhatsAppClientProps {
 }
 
 export function WhatsAppClient({ clients }: WhatsAppClientProps) {
-  const router = useRouter()
-
-  // Evolution API config (stored in Supabase settings)
-  const [evolutionUrl, setEvolutionUrl] = useState('')
-  const [evolutionKey, setEvolutionKey] = useState('')
+  // Bridge config (stored in Supabase settings)
+  const [bridgeUrl, setBridgeUrl] = useState('http://localhost:3099')
   const [showSetup, setShowSetup] = useState(false)
-  const [connected, setConnected] = useState(false)
+  const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus | null>(null)
 
   // Contacts & messages
   const [contacts, setContacts] = useState<WhatsAppContact[]>([])
@@ -262,17 +280,28 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
 
   // Load config from Supabase settings
   useEffect(() => {
-    Promise.all([
-      dbGetSetting('evolution_url'),
-      dbGetSetting('evolution_key'),
-    ]).then(([url, key]) => {
-      const u = url ?? ''
-      const k = key ?? ''
-      setEvolutionUrl(u)
-      setEvolutionKey(k)
-      setConnected(!!u)
+    dbGetSetting('wa_bridge_url').then(url => {
+      if (url) setBridgeUrl(url)
     })
   }, [])
+
+  // Poll bridge status every 10 seconds
+  useEffect(() => {
+    let cancelled = false
+
+    async function poll() {
+      if (cancelled) return
+      const status = await fetchBridgeStatus(bridgeUrl)
+      if (!cancelled) setBridgeStatus(status)
+    }
+
+    poll()
+    const interval = setInterval(poll, 10_000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [bridgeUrl])
 
   // Load contacts
   const loadContacts = useCallback(async () => {
@@ -299,7 +328,6 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
       })
       .catch(() => setLoadingMsgs(false))
 
-    // Mark as read
     dbMarkWhatsAppContactRead(selectedId).then(() => {
       setContacts(prev => prev.map(c => c.id === selectedId ? { ...c, unreadCount: 0 } : c))
     })
@@ -325,10 +353,8 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
           sentAt: row.sent_at as string,
           status: row.status as WhatsAppMessage['status'],
         }
-        // Append to open conversation
         if (newMsg.contactId === selectedId) {
           setMessages(prev => [...prev, newMsg])
-          // Mark read immediately
           dbMarkWhatsAppContactRead(newMsg.contactId)
         }
       })
@@ -347,25 +373,22 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
     }
   }, [selectedId, loadContacts])
 
-  // Selected contact data
+  // Derived state
+  const connected = bridgeStatus?.connected ?? false
   const selectedContact = contacts.find(c => c.id === selectedId)
   const linkedClient = selectedContact?.clientId
     ? clients.find(c => c.id === selectedContact.clientId)
     : null
-
-  // Filtered contacts
   const filteredContacts = contacts.filter(c =>
     !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search)
   )
 
-  async function handleSaveConfig(url: string, key: string) {
-    await Promise.all([
-      dbSetSetting('evolution_url', url),
-      dbSetSetting('evolution_key', key),
-    ])
-    setEvolutionUrl(url)
-    setEvolutionKey(key)
-    setConnected(!!url)
+  async function handleSaveConfig(url: string) {
+    await dbSetSetting('wa_bridge_url', url)
+    setBridgeUrl(url)
+    // Immediately refresh status with the new URL
+    const status = await fetchBridgeStatus(url)
+    setBridgeStatus(status)
     setShowSetup(false)
     toast.success('Configuración guardada')
   }
@@ -384,11 +407,13 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
       const msgs = await dbGetWhatsAppMessages(selectedId)
       setMessages(msgs)
     }
+    const status = await fetchBridgeStatus(bridgeUrl)
+    setBridgeStatus(status)
     setRefreshing(false)
   }
 
   async function handleSend() {
-    if (!msgText.trim() || !selectedContact || !evolutionUrl) return
+    if (!msgText.trim() || !selectedContact || !connected) return
     setSending(true)
     const text = msgText.trim()
     setMsgText('')
@@ -405,8 +430,8 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
       }
       setMessages(prev => [...prev, optimisticMsg])
 
-      // Send via Evolution API
-      await evolutionSendMessage(evolutionUrl, evolutionKey, selectedContact.phone, text)
+      // Send via local bridge
+      await localBridgeSend(bridgeUrl, selectedContact.phone, text)
 
       // Persist to Supabase
       const saved = await dbInsertWhatsAppMessage(selectedContact.id, 'out', text)
@@ -419,11 +444,10 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
           : c
       ))
     } catch (err) {
-      toast.error('Error al enviar el mensaje. Verifica la configuración de Evolution API.')
+      toast.error('Error al enviar el mensaje. Verifica que el bridge local está corriendo.')
       console.error(err)
-      // Remove optimistic message
       setMessages(prev => prev.filter(m => !m.id.startsWith('tmp-')))
-      setMsgText(text) // Restore text
+      setMsgText(text)
     } finally {
       setSending(false)
     }
@@ -434,6 +458,15 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
       e.preventDefault()
       handleSend()
     }
+  }
+
+  // ─── Status badge label ────────────────────────────────────────────────────
+
+  function StatusLabel() {
+    if (!bridgeStatus) return <><WifiOff className="h-2.5 w-2.5 text-muted-foreground" /><span className="text-[10px] text-muted-foreground">Bridge no disponible</span></>
+    if (bridgeStatus.connected) return <><Wifi className="h-2.5 w-2.5 text-green-500" /><span className="text-[10px] text-green-600">+{bridgeStatus.number}</span></>
+    if (bridgeStatus.hasQR) return <><Smartphone className="h-2.5 w-2.5 text-amber-500" /><span className="text-[10px] text-amber-600">Esperando QR</span></>
+    return <><WifiOff className="h-2.5 w-2.5 text-muted-foreground" /><span className="text-[10px] text-muted-foreground">Desconectado</span></>
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -455,11 +488,7 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
             <div>
               <p className="text-sm font-semibold">WhatsApp</p>
               <div className="flex items-center gap-1">
-                {connected ? (
-                  <><Wifi className="h-2.5 w-2.5 text-green-500" /><span className="text-[10px] text-green-600">Conectado</span></>
-                ) : (
-                  <><WifiOff className="h-2.5 w-2.5 text-muted-foreground" /><span className="text-[10px] text-muted-foreground">Sin configurar</span></>
-                )}
+                <StatusLabel />
               </div>
             </div>
           </div>
@@ -467,7 +496,7 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
             <Button variant="ghost" size="icon-sm" onClick={handleRefresh} disabled={refreshing} title="Actualizar">
               <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
             </Button>
-            <Button variant="ghost" size="icon-sm" onClick={() => setShowSetup(true)} title="Configurar API">
+            <Button variant="ghost" size="icon-sm" onClick={() => setShowSetup(true)} title="Configurar bridge">
               <Settings2 className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -496,14 +525,31 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
           {!connected && (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
               <WifiOff className="h-8 w-8 text-muted-foreground/30 mb-3" />
-              <p className="text-sm font-medium mb-1">WhatsApp no configurado</p>
+              <p className="text-sm font-medium mb-1">WhatsApp no conectado</p>
               <p className="text-xs text-muted-foreground mb-4">
-                Conecta tu Evolution API para empezar a recibir y enviar mensajes de WhatsApp.
+                {bridgeStatus
+                  ? bridgeStatus.hasQR
+                    ? 'Escanea el QR con tu móvil para conectar WhatsApp.'
+                    : 'El bridge local está iniciando. Espera unos segundos.'
+                  : 'Inicia el bridge local con node server.js en D:/Dev/whatsapp-local/'}
               </p>
-              <Button size="sm" onClick={() => setShowSetup(true)}>
-                <Settings2 className="h-3.5 w-3.5 mr-1.5" />
-                Configurar ahora
-              </Button>
+              <div className="flex gap-2">
+                {bridgeStatus?.hasQR && (
+                  <a
+                    href={`${bridgeUrl}/qr`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
+                  >
+                    <Smartphone className="h-3.5 w-3.5" />
+                    Ver QR
+                  </a>
+                )}
+                <Button size="sm" onClick={() => setShowSetup(true)}>
+                  <Settings2 className="h-3.5 w-3.5 mr-1.5" />
+                  Configurar bridge
+                </Button>
+              </div>
             </div>
           )}
           {connected && filteredContacts.length === 0 && (
@@ -532,7 +578,6 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
         mobileView === 'list' ? 'hidden md:flex' : 'flex',
       )}>
         {!selectedContact ? (
-          /* Empty state */
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-green-500/10 mb-4">
               <MessageSquare className="h-8 w-8 text-green-600" />
@@ -546,7 +591,6 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
           <>
             {/* Chat header */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-border/60 shrink-0 bg-card">
-              {/* Mobile back button */}
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -604,12 +648,12 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
 
             {/* Input area */}
             <div className="flex items-end gap-2 px-4 py-3 border-t border-border/60 shrink-0 bg-card">
-              {!evolutionUrl && (
+              {!connected && (
                 <p className="text-xs text-muted-foreground flex-1 text-center">
-                  Configura Evolution API para enviar mensajes
+                  WhatsApp no conectado — inicia el bridge local para enviar mensajes
                 </p>
               )}
-              {evolutionUrl && (
+              {connected && (
                 <>
                   <Input
                     ref={inputRef}
@@ -644,8 +688,8 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
         <SetupDialog
           onSave={handleSaveConfig}
           onClose={() => setShowSetup(false)}
-          initialUrl={evolutionUrl}
-          initialKey={evolutionKey}
+          initialUrl={bridgeUrl}
+          bridgeStatus={bridgeStatus}
         />
       )}
     </div>
