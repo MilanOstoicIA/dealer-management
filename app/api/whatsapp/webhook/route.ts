@@ -16,16 +16,16 @@ function normalizePhone(raw: string): string {
 // ─── Auto-link contact to client by phone ───────────────────────────────────
 
 async function tryLinkClient(contactId: string, phone: string) {
-  // Attempt exact match on clients.phone (strips non-digit chars at lookup)
+  // Attempt exact match on dealer_clients.phone (strips non-digit chars at lookup)
   const { data: clients } = await supabaseAdmin
-    .from('clients')
+    .from('dealer_clients')
     .select('id, phone')
     .ilike('phone', `%${phone.slice(-9)}`) // last 9 digits (Spain number)
     .limit(1)
 
   if (clients && clients.length > 0) {
     await supabaseAdmin
-      .from('whatsapp_contacts')
+      .from('dealer_whatsapp_contacts')
       .update({ client_id: clients[0].id })
       .eq('id', contactId)
   }
@@ -36,7 +36,7 @@ async function tryLinkClient(contactId: string, phone: string) {
 async function handleIncomingMessage(phone: string, name: string, body: string, mediaUrl?: string) {
   // Upsert contact
   const { data: contact, error: contactErr } = await supabaseAdmin
-    .from('whatsapp_contacts')
+    .from('dealer_whatsapp_contacts')
     .upsert(
       { phone, name: name || phone },
       { onConflict: 'phone', ignoreDuplicates: false }
@@ -53,7 +53,7 @@ async function handleIncomingMessage(phone: string, name: string, body: string, 
 
   // Insert message
   const { error: msgErr } = await supabaseAdmin
-    .from('whatsapp_messages')
+    .from('dealer_whatsapp_messages')
     .insert({
       contact_id: contactId,
       direction: 'in',
@@ -67,7 +67,7 @@ async function handleIncomingMessage(phone: string, name: string, body: string, 
   // Update contact last_message + increment unread
   const currentUnread = (contact.unread_count as number) ?? 0
   await supabaseAdmin
-    .from('whatsapp_contacts')
+    .from('dealer_whatsapp_contacts')
     .update({
       last_message: (body || '[media]').slice(0, 120),
       last_message_at: new Date().toISOString(),

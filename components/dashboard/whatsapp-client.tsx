@@ -342,7 +342,7 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
   useEffect(() => {
     const msgChannel = supabase
       .channel('wa-messages-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' }, payload => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'dealer_whatsapp_messages' }, payload => {
         const row = payload.new as Record<string, unknown>
         const newMsg: WhatsAppMessage = {
           id: row.id as string,
@@ -362,7 +362,7 @@ export function WhatsAppClient({ clients }: WhatsAppClientProps) {
 
     const contactChannel = supabase
       .channel('wa-contacts-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_contacts' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dealer_whatsapp_contacts' }, () => {
         loadContacts()
       })
       .subscribe()
