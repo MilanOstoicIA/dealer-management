@@ -30,6 +30,7 @@ export interface RolePermissions {
   view_publicacion: boolean;
   view_configuracion: boolean;
   view_whatsapp: boolean;
+  view_productos: boolean;
   // Edición
   edit_vehiculos: boolean;
   edit_clientes: boolean;
@@ -40,6 +41,7 @@ export interface RolePermissions {
   edit_equipo: boolean;
   edit_proveedores: boolean;
   edit_seguimientos: boolean;
+  edit_productos: boolean;
   // Especiales
   dashboard_editor: boolean;
   export_data: boolean;
@@ -58,10 +60,10 @@ export const DEFAULT_PERMISSIONS: RolePermissions = {
   view_vehiculos: false, view_clientes: false, view_citas: false, view_ventas: false,
   view_facturacion: false, view_contabilidad: false, view_equipo: false, view_foro: false,
   view_proveedores: false, view_seguimientos: false, view_publicacion: false, view_configuracion: false,
-  view_whatsapp: false,
+  view_whatsapp: false, view_productos: false,
   edit_vehiculos: false, edit_clientes: false, edit_citas: false, edit_ventas: false,
   edit_facturacion: false, edit_contabilidad: false, edit_equipo: false, edit_proveedores: false,
-  edit_seguimientos: false,
+  edit_seguimientos: false, edit_productos: false,
   dashboard_editor: false, export_data: false,
 };
 

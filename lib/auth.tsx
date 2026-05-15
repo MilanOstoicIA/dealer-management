@@ -138,6 +138,7 @@ function permissionsToRoutes(p: RolePermissions): string[] {
   if (p.view_publicacion)  routes.push("/dashboard/publicacion")
   if (p.view_configuracion)routes.push("/dashboard/configuracion")
   if (p.view_whatsapp)     routes.push("/dashboard/whatsapp")
+  if (p.view_productos)    routes.push("/dashboard/productos")
   return routes
 }
 
