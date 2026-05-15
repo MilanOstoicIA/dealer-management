@@ -3,7 +3,7 @@ import type {
   Vehicle, Client, Sale, Appointment, Expense, User, ForumPost,
   VehicleServiceRecord, ClientVehicleInfo, WorkItem, Tracking,
   Supplier, TrackingHistoryEntry, Invoice, CustomRole, RolePermissions,
-  WhatsAppContact, WhatsAppMessage,
+  WhatsAppContact, WhatsAppMessage, Product,
 } from "@/types"
 
 // ─── Helpers: snake_case <-> camelCase mappers ─────────────────────────────
@@ -711,6 +711,81 @@ export async function dbGetNextInvoiceNumber(): Promise<string> {
     return `${prefix}${String(lastNum + 1).padStart(4, "0")}`
   }
   return `${prefix}0001`
+}
+
+// ─── Productos ────────────────────────────────────────────────────────────────
+
+function productFromRow(r: Record<string, unknown>): Product {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    description: (r.description as string) || undefined,
+    category: r.category as Product["category"],
+    price: Number(r.price),
+    cost: Number(r.cost ?? 0),
+    unit: (r.unit as Product["unit"]) || "unidad",
+    taxRate: Number(r.tax_rate ?? 21),
+    sku: (r.sku as string) || undefined,
+    stock: r.stock != null ? Number(r.stock) : null,
+    minStock: r.min_stock != null ? Number(r.min_stock) : null,
+    active: r.active as boolean,
+    createdAt: r.created_at as string,
+  }
+}
+
+export async function dbGetProducts(): Promise<Product[]> {
+  const { data, error } = await supabase
+    .from("dealer_products")
+    .select("*")
+    .order("category")
+    .order("name")
+  if (error) throw error
+  return (data ?? []).map(r => productFromRow(r as Record<string, unknown>))
+}
+
+export async function dbAddProduct(p: Omit<Product, "id" | "createdAt">): Promise<Product> {
+  const { data, error } = await supabase
+    .from("dealer_products")
+    .insert({
+      name: p.name,
+      description: p.description ?? null,
+      category: p.category,
+      price: p.price,
+      cost: p.cost,
+      unit: p.unit,
+      tax_rate: p.taxRate,
+      sku: p.sku ?? null,
+      stock: p.stock ?? null,
+      min_stock: p.minStock ?? null,
+      active: p.active,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return productFromRow(data as Record<string, unknown>)
+}
+
+export async function dbUpdateProduct(id: string, p: Partial<Omit<Product, "id" | "createdAt">>): Promise<void> {
+  const row: Record<string, unknown> = {}
+  if (p.name !== undefined) row.name = p.name
+  if (p.description !== undefined) row.description = p.description
+  if (p.category !== undefined) row.category = p.category
+  if (p.price !== undefined) row.price = p.price
+  if (p.cost !== undefined) row.cost = p.cost
+  if (p.unit !== undefined) row.unit = p.unit
+  if (p.taxRate !== undefined) row.tax_rate = p.taxRate
+  if (p.sku !== undefined) row.sku = p.sku
+  if (p.stock !== undefined) row.stock = p.stock
+  if (p.minStock !== undefined) row.min_stock = p.minStock
+  if (p.active !== undefined) row.active = p.active
+  row.updated_at = new Date().toISOString()
+  const { error } = await supabase.from("dealer_products").update(row).eq("id", id)
+  if (error) throw error
+}
+
+export async function dbDeleteProduct(id: string): Promise<void> {
+  const { error } = await supabase.from("dealer_products").delete().eq("id", id)
+  if (error) throw error
 }
 
 // Settings

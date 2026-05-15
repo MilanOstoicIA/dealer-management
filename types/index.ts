@@ -391,3 +391,24 @@ export interface WhatsAppMessage {
   sentAt: string;           // ISO date
   status: "sent" | "delivered" | "read" | "failed";
 }
+
+// ─── Catálogo de productos y servicios ───────────────────────────────────────
+
+export type ProductCategory = "servicio" | "pieza" | "consumible";
+export type ProductUnit = "unidad" | "hora" | "servicio" | "litro" | "kg" | "metro";
+
+export interface Product {
+  id: string;
+  name: string;
+  description?: string;
+  category: ProductCategory;
+  price: number;        // EUR — precio de venta
+  cost: number;         // EUR — coste para el taller
+  unit: ProductUnit;
+  taxRate: number;      // % IVA (21 por defecto)
+  sku?: string;
+  stock?: number | null;     // null = sin control de stock (servicios)
+  minStock?: number | null;  // aviso de stock mínimo
+  active: boolean;
+  createdAt: string;
+}

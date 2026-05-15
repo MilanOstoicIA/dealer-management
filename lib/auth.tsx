@@ -7,7 +7,7 @@ import { useStore } from "@/lib/store"
 import { dbVerifyPassword } from "@/lib/supabase-service"
 
 // Sections that can be edited
-export type EditableSection = "vehiculos" | "clientes" | "citas" | "ventas" | "equipo" | "seguimientos" | "proveedores"
+export type EditableSection = "vehiculos" | "clientes" | "citas" | "ventas" | "equipo" | "seguimientos" | "proveedores" | "productos"
 
 // Which roles can create/edit/delete in each section
 const EDIT_PERMISSIONS: Record<EditableSection, UserRole[]> = {
@@ -18,6 +18,7 @@ const EDIT_PERMISSIONS: Record<EditableSection, UserRole[]> = {
   equipo: ["admin"],
   seguimientos: ["admin", "vendedor", "mecanico", "recepcionista"],
   proveedores: ["admin", "vendedor"],
+  productos: ["admin", "vendedor"],
 }
 
 interface AuthContextType {
@@ -54,6 +55,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/facturacion",
     "/dashboard/equipo",
     "/dashboard/seguimientos",
+    "/dashboard/productos",
     "/dashboard/proveedores",
     "/dashboard/whatsapp",
     "/dashboard/publicacion",
@@ -67,6 +69,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/citas",
     "/dashboard/ventas",
     "/dashboard/seguimientos",
+    "/dashboard/productos",
     "/dashboard/proveedores",
     "/dashboard/whatsapp",
     "/dashboard/foro",
@@ -77,6 +80,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/clientes",
     "/dashboard/citas",
     "/dashboard/seguimientos",
+    "/dashboard/productos",
     "/dashboard/proveedores",
   ],
   recepcionista: [
@@ -85,6 +89,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/citas",
     "/dashboard/vehiculos",
     "/dashboard/seguimientos",
+    "/dashboard/productos",
     "/dashboard/proveedores",
     "/dashboard/whatsapp",
     "/dashboard/foro",
@@ -99,6 +104,7 @@ export const ROLE_ACCESS: Record<UserRole, string[]> = {
     "/dashboard/facturacion",
     "/dashboard/equipo",
     "/dashboard/seguimientos",
+    "/dashboard/productos",
     "/dashboard/proveedores",
     "/dashboard/foro",
   ],

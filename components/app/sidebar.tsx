@@ -20,6 +20,7 @@ import {
   Building2,
   Globe,
   MessageCircle,
+  Package,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -36,6 +37,7 @@ const allNavItems = [
   { href: "/dashboard/citas", labelKey: "nav.appointments", icon: CalendarDays, section: "principal" },
   { href: "/dashboard/ventas", labelKey: "nav.sales", icon: ShoppingCart, section: "principal" },
   { href: "/dashboard/seguimientos", labelKey: "nav.tracking", icon: ClipboardCheck, section: "principal" },
+  { href: "/dashboard/productos", labelKey: "nav.products", icon: Package, section: "principal" },
   { href: "/dashboard/proveedores", labelKey: "nav.suppliers", icon: Building2, section: "principal" },
   { href: "/dashboard/whatsapp", labelKey: "nav.whatsapp", icon: MessageCircle, section: "principal" },
   { href: "/dashboard/publicacion", labelKey: "nav.publication", icon: Globe, section: "admin" },
