@@ -399,6 +399,7 @@ export default function CitasPage() {
         <AppointmentsCalendar
           appointments={appointments}
           getClientName={id => getClientById(id)?.name ?? 'Sin cliente'}
+          mechanics={users.filter(u => u.role === "mecanico").map(u => ({ id: u.id, name: u.name }))}
           onSelectEvent={appt => setSelectedAppointment(appt)}
           defaultView="week"
         />
